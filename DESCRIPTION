@@ -1,0 +1,28 @@
+Package: sortCIS
+Type: Package
+Title: Armonización de las Variables Sociodemográficas de los Estudios del CIS
+Version: 0.3.0
+Authors@R: person("Modesto", "Escobar",
+                  email = "gas@usal.es",
+                  role = c("aut", "cre"))
+Description: Convierte los ficheros de datos de los estudios del Centro de
+    Investigaciones Sociológicas (CIS) a un esquema sociodemográfico común,
+    de modo que estudios de distintos años se puedan apilar directamente.
+    La detección de las variables y la recodificación de sus categorías se
+    hacen por etiqueta y no por nombre ni por código numérico, porque el CIS
+    no mantiene unos ni otros estables entre estudios. Los mapas de
+    recodificación se derivaron del acumulado FID3978abrev.
+License: GPL-3
+Encoding: UTF-8
+Language: es
+Depends:
+    R (>= 4.1)
+Imports:
+    haven (>= 2.5.0),
+    stats,
+    utils
+Suggests:
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
+Config/roxygen2/version: 8.1.0
+Roxygen: list(markdown = TRUE)

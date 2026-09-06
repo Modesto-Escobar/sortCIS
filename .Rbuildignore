@@ -1,0 +1,8 @@
+^\.git$
+^\.gitignore$
+^\.Rproj\.user$
+^.*\.Rproj$
+^\.Rbuildignore$
+^datos$
+^.*\.Rcheck$
+^.*\.tar\.gz$
