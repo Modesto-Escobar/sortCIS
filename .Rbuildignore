@@ -6,3 +6,4 @@
 ^datos$
 ^.*\.Rcheck$
 ^.*\.tar\.gz$
+^\.mcp\.json$
