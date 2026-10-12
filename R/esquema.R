@@ -28,6 +28,31 @@
                              Baja = 4, Otras = 9))
 )
 
+# Variables con un orden natural entre sus categorias: salen como factor
+# ordenado. Las demas, como factor sin orden.
+.ORDINALES <- c("generacion", "edad", "ideologia", "estudios", "clase")
+
+# Pasa las nueve variables del esquema a factor, con los niveles en el
+# orden de los codigos. Se ponen todos los niveles del esquema, aunque el
+# estudio no tenga casos en alguno (G. 98 en un barometro de 2026): asi
+# los factores de dos estudios distintos son iguales y se apilan sin
+# sorpresas. Con NAs = FALSE los perdidos pasan a un nivel "N.C." al final.
+.a_factores <- function(out, NAs = TRUE) {
+  for (cc in names(.ETIQ)) {
+    val <- .ETIQ[[cc]]$val
+    val <- val[order(val)]
+    f <- factor(as.numeric(out[[cc]]), levels = unname(val),
+                labels = names(val), ordered = cc %in% .ORDINALES)
+    if (!NAs) {
+      f <- addNA(f, ifany = FALSE)
+      levels(f)[is.na(levels(f))] <- "N.C."
+    }
+    attr(f, "label") <- .ETIQ[[cc]]$lab
+    out[[cc]] <- f
+  }
+  out
+}
+
 .SALIDA <- c("estudio", "cues", "orden", "numentr", "genero", "generacion",
              "edad", "ideologia", "religion", "estudios", "laboral",
              "profesional", "clase")
@@ -46,6 +71,9 @@
 # estudio, comprobado) para los 33 que estan en el acumulado, mas la
 # ficha tecnica FT3557.pdf para el 3557. Contrastado ademas contra la
 # variable E103 en los 21 estudios que la traen: coinciden los 21.
+# Despues se añadieron el 3567 (barometro de junio de 2026, segun su
+# cuestionario) y el 3577 (septiembre de 2026, segun FT3577.pdf), que
+# tampoco traen E103.
 #
 # Para un estudio que no este aqui, la funcion sigue mirando E103 y
 # datos/estudios_fecha.csv, y admite anyo= .
@@ -57,6 +85,7 @@
   `3173` = 2017, `3191` = 2017, `3210` = 2018, `3226` = 2018, `3238` = 2019,
   `3257` = 2019, `3279` = 2020, `3296` = 2020, `3318` = 2021, `3337` = 2021,
   `3359` = 2022, `3380` = 2022, `3403` = 2023, `3423` = 2023, `3450` = 2024,
-  `3478` = 2024, `3505` = 2025, `3528` = 2025, `3557` = 2026
+  `3478` = 2024, `3505` = 2025, `3528` = 2025, `3557` = 2026, `3567` = 2026,
+  `3577` = 2026
 )
 

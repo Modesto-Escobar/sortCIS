@@ -7,8 +7,9 @@
 # ---------------------------------------------------------------------
 
 # Aplica un vector de reglas c(patron = destino) sobre las etiquetas.
-# Devuelve NA para lo que no case (que es lo correcto: N.C., N.S.,
-# "Otros" y "Otra situacion" van a perdido en el esquema comun).
+# Devuelve NA para lo que no case y para las reglas cuyo destino es NA:
+# asi van a perdido los N.C., los N.S. y, segun la variable, "Otros" u
+# "Otra situacion". Que va a perdido lo deciden las reglas de cada una.
 .por_etiqueta <- function(x, reglas, sin_etiquetas = NULL) {
   v <- as.numeric(zap_missing(x))
   et <- .valores(x)

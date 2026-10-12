@@ -52,10 +52,62 @@ test_that("un concepto ausente se crea como columna vacia", {
 
 test_that("las etiquetas del esquema comun viajan con los datos", {
   f <- sav_temporal(estudio_moderno(), "3557")
-  d <- cis_sociodem(f, tabla = tabla_temporal(), escribir = FALSE, avisos = FALSE)
+  d <- cis_sociodem(f, tabla = tabla_temporal(), escribir = FALSE, avisos = FALSE,
+                    factores = FALSE)
   expect_equal(attr(d$genero, "label"), "Sexo de la persona entrevistada")
   expect_equal(attr(d$profesional, "labels")[["Otra situacion"]], 6)
   expect_equal(attr(d$estudios, "labels")[["Universitarios"]], 500)
+})
+
+test_that("por defecto devuelve factores, ordenados solo los ordinales", {
+  f <- sav_temporal(estudio_moderno(), "3557")
+  d <- cis_sociodem(f, tabla = tabla_temporal(), escribir = FALSE, avisos = FALSE)
+  for (v in .ORDINALES) expect_true(is.ordered(d[[v]]), info = v)
+  for (v in c("genero", "religion", "laboral", "profesional")) {
+    expect_true(is.factor(d[[v]]), info = v)
+    expect_false(is.ordered(d[[v]]), info = v)
+  }
+  # niveles en el orden de los codigos, todos aunque no haya casos
+  expect_equal(levels(d$estudios), c("Sin estudios", "Primaria y secundaria elemental",
+                                     "Secundaria superior", "Universitarios"))
+  expect_equal(levels(d$generacion)[1], "G. 98")
+  expect_equal(attr(d$genero, "label"), "Sexo de la persona entrevistada")
+  # el factor dice lo mismo que el codigo etiquetado
+  e <- cis_sociodem(f, tabla = tabla_temporal(), escribir = FALSE, avisos = FALSE,
+                    factores = FALSE)
+  expect_equal(as.character(d$estudios), as.character(haven::as_factor(e$estudios)))
+  expect_equal(is.na(d$clase), is.na(e$clase))
+})
+
+test_that("NAs = FALSE pone los perdidos en un nivel N.C. al final", {
+  m <- estudio_moderno()
+  m$CLASESUB <- NULL
+  f <- sav_temporal(m, "3557")
+  d <- cis_sociodem(f, tabla = tabla_temporal(), escribir = FALSE, avisos = FALSE,
+                    NAs = FALSE)
+  expect_equal(tail(levels(d$clase), 1), "N.C.")
+  expect_true(is.ordered(d$clase))
+  expect_true(all(d$clase == "N.C."))
+  expect_false(anyNA(d$clase))
+  # el nivel esta aunque no haya perdidos, para que los estudios casen
+  expect_equal(tail(levels(d$genero), 1), "N.C.")
+})
+
+test_that("los ficheros se escriben etiquetados aunque se devuelvan factores", {
+  f <- sav_temporal(estudio_moderno(), "3557")
+  destino <- tempfile()
+  cis_sociodem(f, destino = destino, tabla = tabla_temporal(), avisos = FALSE)
+  vuelta <- haven::read_sav(paste0(destino, ".sav"))
+  expect_s3_class(vuelta$estudios, "haven_labelled")
+  expect_equal(attr(vuelta$estudios, "labels")[["Universitarios"]], 500)
+})
+
+test_that("factores y NAs solo admiten TRUE o FALSE", {
+  f <- sav_temporal(estudio_moderno(), "3557")
+  expect_error(cis_sociodem(f, tabla = tabla_temporal(), escribir = FALSE,
+                            avisos = FALSE, factores = "si"), "factores")
+  expect_error(cis_sociodem(f, tabla = tabla_temporal(), escribir = FALSE,
+                            avisos = FALSE, NAs = NA), "NAs")
 })
 
 test_that("salida='auditoria' anyade las variables crudas con prefijo o_", {

@@ -10,7 +10,12 @@
   x <- chartr("\u00e1\u00e9\u00ed\u00f3\u00fa\u00fc\u00f1\u00c1\u00c9\u00cd\u00d3\u00da\u00dc\u00d1",
               "aeiouunAEIOUUN", x)
   x <- tolower(x)
-  x <- sub("\\(.*$", "", x)          # fuera la aclaracion entre parentesis
+  # Fuera las aclaraciones entre parentesis, pero solo ellas: el 3577 dice
+  # "Escala (1-10) de autoubicacion ideologica", con el parentesis en
+  # medio, y cortar desde el primer "(" hasta el final dejaba "escala".
+  # Un parentesis sin cerrar si se lleva el resto.
+  x <- gsub("\\([^)]*\\)", " ", x)
+  x <- sub("\\(.*$", "", x)
   x <- gsub("[[:space:]]+", " ", x)
   trimws(x)
 }

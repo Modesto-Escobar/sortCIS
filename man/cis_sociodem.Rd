@@ -13,7 +13,13 @@ cis_sociodem(
   tabla = NULL,
   escribir = TRUE,
   avisos = TRUE,
-  formato = c("sav", "dta", "ambos")
+  formato = c("sav", "dta", "ambos"),
+  factores = TRUE,
+  NAs = TRUE,
+  likert = c("numerica", "factor"),
+  escala = c("numerica", "factor"),
+  centrada = FALSE,
+  IAs = FALSE
 )
 }
 \arguments{
@@ -32,12 +38,18 @@ ficheros se apilen. Es el valor por defecto.}
 sale cada una, con prefijo \code{o_} (\code{o_sexo}, \code{o_escideol}...), para
 poder comprobar la recodificación. Las \code{o_} cambian de un estudio a
 otro; las doce primeras columnas no.}
-\item{\code{"completo"}}{El fichero de entrada intacto más las nueve nuevas
+\item{\code{"completo"}}{El fichero de entrada (sin las \code{IA_}, salvo con
+\code{IAs = TRUE}) más las nueve nuevas
 al final, junto con \code{orden} y \code{numentr}. No se añaden \code{estudio} ni
 \code{cues}, porque el fichero ya trae sus propios identificadores. Si
 algún nombre del fichero original choca con uno armonizado, el
 original se conserva con el sufijo \verb{_ORIG}: SPSS no distingue
-mayúsculas, así que \code{ESTUDIOS} chocaría con \code{estudios}.}
+mayúsculas, así que \code{ESTUDIOS} chocaría con \code{estudios}.
+Lo que se devuelve en R va en otro orden: \code{orden} y \code{numentr}, las
+nueve armonizadas, las escalas y Likert convertidas (véase la
+sección «Escalas y Likert») y después el fichero original. Con
+\code{factores = TRUE} las variables etiquetadas del original pasan a
+factor si todos sus valores tienen etiqueta, y a número si no.}
 }}
 
 \item{estudio}{Número de estudio. Por defecto se busca en las variables
@@ -47,7 +59,7 @@ mayúsculas, así que \code{ESTUDIOS} chocaría con \code{estudios}.}
 hace falta para un estudio que no sea de la serie: por defecto se busca,
 en este orden, en la variable \code{E103} del propio fichero, en
 \code{datos/estudios_fecha.csv} si está, y en la tabla interna que trae los
-34 estudios de la serie. Si no aparece en ninguno se avisa y
+36 estudios de la serie. Si no aparece en ninguno se avisa y
 \code{generacion} queda a perdido; las otras ocho variables no se resienten.}
 
 \item{tabla}{Ruta del TSV de correspondencias revisable. Por defecto,
@@ -68,6 +80,49 @@ que no empiecen por dígito y no pasen de 32 caracteres. Los que pone
 esta función los cumplen siempre; con \code{salida = "completo"} los nombres
 vienen del fichero de origen y, si alguno no vale, se avisa nombrándolo
 en vez de escribir un fichero a medias.}
+
+\item{factores}{Si es \code{TRUE} (por defecto), las nueve variables
+armonizadas del \code{data.frame} que se devuelve son factores, con los
+niveles en el orden de los códigos: ordenados (\code{ordered}) \code{generacion},
+\code{edad}, \code{ideologia}, \code{estudios} y \code{clase}, y sin orden \code{genero},
+\code{religion}, \code{laboral} y \code{profesional}. Llevan siempre todos los niveles
+del esquema, aunque el estudio no tenga casos en alguno, para que los de
+dos estudios coincidan al apilarlos. Si es \code{FALSE}, se devuelven
+etiquetadas (\code{haven_labelled}), con los códigos del esquema común.
+
+Sólo afecta a lo que se devuelve: los ficheros \code{.sav} y \code{.dta} se
+escriben siempre etiquetados y con los códigos del esquema común.
+
+Ojo: \code{as.numeric()} sobre un factor da la posición del nivel, no el
+código. En \code{estudios} (100-500), \code{profesional} (0, 1, 2, 6) y \code{clase}
+(9 Otras) no coinciden; para los códigos, \code{factores = FALSE}.}
+
+\item{NAs}{Sólo cuenta con \code{factores = TRUE}. Si es \code{TRUE} (por defecto),
+los perdidos quedan como \code{NA}. Si es \code{FALSE}, pasan a un nivel \code{"N.C."}
+explícito, el último.}
+
+\item{likert}{Sólo cuenta con \code{salida = "completo"}. Cómo se devuelven las
+preguntas de tipo Likert ("Muy buena" ... "Muy mala", "Mucha" ...
+"Ninguna confianza", "Muy de acuerdo" ... "Muy en desacuerdo"):
+\code{"numerica"} (por defecto) o \code{"factor"} ordenado. En las dos, el valor
+más alto es el polo positivo o intenso, al revés que en los códigos del
+CIS, que ponen primero "Muy buena". Véase la sección «Escalas y Likert».}
+
+\item{escala}{Sólo cuenta con \code{salida = "completo"}. Cómo se devuelven las
+escalas 0-10, 1-10 o 1-7 (ideología, valoración de líderes,
+probabilidad de voto...): \code{"numerica"} (por defecto), con el valor tal
+cual, o \code{"factor"} ordenado.}
+
+\item{centrada}{Sólo cuenta con \code{likert = "numerica"}. Si es \code{TRUE}, el
+punto medio de la escala vale 0, el polo negativo es negativo y el
+positivo, positivo: con cinco categorías, -2, -1, 0, 1, 2; con cuatro,
+que no tienen punto medio, -2, -1, 1, 2. Por defecto, \code{FALSE}: de 1 a k.}
+
+\item{IAs}{Sólo cuenta con \code{salida = "completo"}. Si es \code{FALSE} (por
+defecto), se quitan las variables de paradatos del CIS, las que empiezan
+por \code{IA_} (incidencias de contacto, supervisión de la entrevista...),
+tanto del fichero que se escribe como de lo que se devuelve. Con \code{TRUE}
+se conservan.}
 }
 \value{
 Invisiblemente, el \code{data.frame} de salida. El efecto que interesa
@@ -122,9 +177,35 @@ etiqueta del valor y no por el número.}
 9 Otras.}
 }
 
-Los "N.C.", "N.S.", "Otros" y "Otra situación" van a perdido, que es lo que
-hace el esquema común. Un concepto que no exista en el estudio se crea como
+Los "N.C." y los "N.S." van a perdido, y también "Otros" en \code{estudios} y
+"Otra situación" en \code{laboral}. Hay dos excepciones, que reproducen lo que
+hace el esquema común: en \code{profesional}, "Otra situación" (junto con la
+ayuda familiar y la cooperativa) va al 6, y en \code{clase}, "Otras", "No sabe"
+y las respuestas que no nombran una clase van al 9. Un concepto que no exista en el estudio se crea como
 columna vacía, para que el fichero siga siendo apilable.
+}
+
+\section{Escalas y Likert}{
+
+Con \code{salida = "completo"}, las preguntas de escala y las de tipo Likert
+del fichero se añaden convertidas, como columnas nuevas con el nombre en
+minúsculas (\code{escideol}, \code{valoralideres_1}...), justo detrás de las nueve
+armonizadas. Las originales se quedan al final con su nombre en
+mayúsculas. Los "N.S.", "N.C.", "No procede" y "No conoce" van a \code{NA}.
+
+Se reconocen por la forma de las etiquetas de valor, no por el nombre:
+\describe{
+\item{Escala}{Seis o más puntos seguidos entre 0 y 10 con los
+intermedios etiquetados sólo con su número (\code{2 = "2"}), como en los
+estudios recientes; o, como en los antiguos, sin etiquetas para los
+puntos y con todos los valores observados entre 0 y 10.}
+\item{Likert}{De tres a siete categorías con códigos 1..k cuyas
+etiquetas empiezan con palabras de intensidad ("muy", "mucho",
+"bastante", "poco", "nada", "ninguna", "regular", "mejor", "peor",
+"de acuerdo"...). Hacia dónde va la escala se mira en las etiquetas
+de los extremos.}
+}
+Las variables de paradatos (\code{IA_}) no se tocan.
 }
 
 \section{La tabla de correspondencias}{
@@ -168,6 +249,12 @@ cis_sociodem("datos/sav/3557.sav", destino = "salida/3557.dta")
 a <- cis_sociodem("datos/sav/3528.sav", escribir = FALSE)
 b <- cis_sociodem("datos/sav/3557.sav", escribir = FALSE)
 todo <- rbind(a, b)
+
+# Los perdidos como nivel "N.C." explícito
+d <- cis_sociodem("datos/sav/3557.sav", escribir = FALSE, NAs = FALSE)
+
+# Etiquetadas con los códigos del esquema, como en el fichero
+d <- cis_sociodem("datos/sav/3557.sav", escribir = FALSE, factores = FALSE)
 }
 
 }

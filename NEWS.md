@@ -1,3 +1,54 @@
+# sortCIS 0.4.0
+
+* **Factores en lo que se devuelve.** `cis_sociodem()` gana el argumento
+  `factores`, `TRUE` por defecto: las nueve variables armonizadas del
+  `data.frame` devuelto son factores, con los niveles en el orden de los
+  códigos y todos los niveles del esquema, aunque el estudio no tenga casos
+  en alguno. `generacion`, `edad`, `ideologia`, `estudios` y `clase` son
+  factores ordenados; `genero`, `religion`, `laboral` y `profesional`, sin
+  orden. Los ficheros `.sav` y `.dta` se siguen escribiendo etiquetados, con
+  los códigos del esquema común.
+
+  **Cambia lo que devuelve la función.** Quien use los códigos del esquema
+  común en R tiene que pasar `factores = FALSE`. `as.numeric()` sobre un
+  factor da la posición del nivel y no el código, y en `estudios`,
+  `profesional` y `clase` no coinciden.
+* Nuevo argumento `NAs`, `TRUE` por defecto. Con `NAs = FALSE` los perdidos
+  pasan a un nivel `"N.C."` explícito al final del factor.
+* **Escalas y Likert con `salida = "completo"`.** Las preguntas de escala
+  (0-10, 1-10, 1-7: ideología, valoración de líderes, probabilidad de
+  voto...) y las de tipo Likert ("Muy buena" ... "Muy mala", "Mucha" ...
+  "Ninguna confianza", "Mucho" ... "Nada"...) se añaden convertidas, como
+  columnas nuevas en minúsculas, detrás de las nueve armonizadas. Las
+  originales quedan al final, con su nombre en mayúsculas. Se reconocen por
+  la forma de las etiquetas de valor; probado sobre el 1181, 2207, 2798,
+  3557, 3567 y 3577.
+  - `escala = c("numerica", "factor")`: el valor tal cual, o factor
+    ordenado.
+  - `likert = c("numerica", "factor")`: **invertidas**, de modo que el valor
+    más alto es el polo positivo ("Muy buena" = 5, "Muy mala" = 1).
+  - `centrada = TRUE`: las Likert con el punto medio en 0, de -2 a 2 con
+    cinco categorías y -2, -1, 1, 2 con cuatro.
+  - Con `factores = TRUE`, las demás variables etiquetadas del original
+    pasan a factor si todos sus valores tienen etiqueta, y a número si no.
+  - Los ficheros `.sav` y `.dta` no cambian: todo esto afecta sólo a lo que
+    se devuelve en R.
+* **Fuera los paradatos.** Con `salida = "completo"` se quitan las variables
+  `IA_*` (incidencias de contacto, supervisión de la entrevista...), del
+  fichero escrito y de lo que se devuelve. El nuevo argumento `IAs = TRUE`
+  las conserva.
+
+* **`ideologia` en el 3577.** Su etiqueta es «Escala (1-10) de
+  autoubicación ideológica», con el paréntesis en medio. Al normalizar las
+  etiquetas se cortaba desde el primer paréntesis hasta el final, la
+  etiqueta quedaba en «escala» y la variable no se encontraba: `ideologia`
+  salía vacía. Ahora se quita sólo el contenido del paréntesis. En el 3577
+  pasa del 0 % al 96,8 %; el 1181, el 2207, el 2798 y el 3557 dan un
+  resultado idéntico al de antes.
+* **Año de campo del 3567 y el 3577.** Ninguno de los dos trae `E103` y no
+  estaban en la tabla interna, así que `generacion` salía vacía. Se añaden:
+  junio de 2026 el 3567 y septiembre de 2026 el 3577.
+
 # sortCIS 0.3.0
 
 Tres correcciones en la recodificación, salidas de probar el paquete contra

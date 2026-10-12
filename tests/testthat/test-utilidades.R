@@ -6,6 +6,19 @@ test_that(".norm quita acentos, mayusculas y aclaraciones", {
   expect_equal(.norm("AÑO"), "ano")
 })
 
+test_that(".norm quita solo el parentesis, no lo que va detras", {
+  # Asi lo etiqueta el 3577; cortar desde el "(" dejaba "escala"
+  expect_equal(.norm("Escala (1-10) de autoubicación ideológica"),
+               "escala de autoubicacion ideologica")
+  expect_equal(.norm("Escala (1-10) de autoubicación (sic"), "escala de autoubicacion")
+})
+
+test_that("detecta la ideologia con el parentesis en medio de la etiqueta", {
+  d <- data.frame(ESCIDEOL = 1:3)
+  attr(d$ESCIDEOL, "label") <- "Escala (1-10) de autoubicación ideológica"
+  expect_equal(.detecta(d, .PATRON$ideologia), "ESCIDEOL")
+})
+
 test_that(".norm tolera lo vacio y lo nulo", {
   expect_equal(.norm(NULL), character(0))
   expect_equal(.norm(character(0)), character(0))

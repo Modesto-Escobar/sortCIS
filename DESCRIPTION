@@ -1,7 +1,7 @@
 Package: sortCIS
 Type: Package
 Title: Armonización de las Variables Sociodemográficas de los Estudios del CIS
-Version: 0.3.0
+Version: 0.4.0
 Authors@R: person("Modesto", "Escobar",
                   email = "gas@usal.es",
                   role = c("aut", "cre"))

@@ -6,8 +6,10 @@
 # siguiente. Importa donde el CIS ofrece la misma informacion dos veces:
 # en muchos estudios conviven ESTUDIOS ("Estudios de la persona
 # entrevistada", ya agrupada) y NIVELESTENTREV / P31A ("Nivel de
-# estudios alcanzado...", con el detalle de titulaciones). El acumulado
-# se construyo con la primera, asi que esa es la que se busca antes.
+# estudios alcanzado...", con el detalle de titulaciones). Se busca antes
+# la detallada, y la agrupada queda de respaldo: el nivel alcanzado solo
+# se pregunta a quien tiene estudios, y sus huecos se rellenan con la
+# agrupada (vease .rec_estudios).
 # ---------------------------------------------------------------------
 .PATRON <- list(
   genero      = "^sexo (de la persona entrevistada|del entrevistado)",
