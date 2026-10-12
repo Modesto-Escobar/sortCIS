@@ -79,18 +79,73 @@ test_that("por defecto devuelve factores, ordenados solo los ordinales", {
   expect_equal(is.na(d$clase), is.na(e$clase))
 })
 
-test_that("NAs = FALSE pone los perdidos en un nivel N.C. al final", {
+test_that("por defecto, NA en las ordenadas y N.S./N.C. explicitos en las demas", {
+  f <- sav_temporal(estudio_moderno(), "3557")
+  d <- cis_sociodem(f, tabla = tabla_temporal(), escribir = FALSE, avisos = FALSE)
+  for (v in .ORDINALES) expect_false(any(c("N.S.", "N.C.") %in% levels(d[[v]])), info = v)
+  for (v in c("genero", "religion", "laboral", "profesional"))
+    expect_equal(tail(levels(d[[v]]), 2), c("N.S.", "N.C."), info = v)
+  expect_equal(as.character(d$laboral[8]), "N.C.")
+  expect_true(is.na(d$ideologia[8]))
+})
+
+test_that("en las armonizadas el N.S. y el N.C. del original no se juntan", {
+  f <- sav_temporal(estudio_moderno(), "3557")
+  d <- cis_sociodem(f, tabla = tabla_temporal(), escribir = FALSE, avisos = FALSE,
+                    NAs = FALSE)
+  # ESCIDEOL: 98 N.S., 99 N.C.
+  expect_equal(as.character(d$ideologia[7:8]), c("N.S.", "N.C."))
+  # los valores validos no cambian
+  e <- cis_sociodem(f, tabla = tabla_temporal(), escribir = FALSE, avisos = FALSE,
+                    NAs = TRUE)
+  expect_equal(as.character(d$ideologia[1:6]), as.character(e$ideologia[1:6]))
+})
+
+test_that("el N.S. se reconoce aunque SPSS lo declare missing", {
+  m <- estudio_moderno()
+  m$ESCIDEOL <- haven::labelled_spss(c(1, 5, 9, 3, 6, 10, 98, 99),
+    labels = c(`N.S.` = 98, `N.C.` = 99), na_values = c(98, 99),
+    label = "Escala de autoubicación ideológica (1-10)")
+  f <- sav_temporal(m, "3557")
+  d <- cis_sociodem(f, tabla = tabla_temporal(), escribir = FALSE, avisos = FALSE,
+                    NAs = FALSE)
+  expect_equal(as.character(d$ideologia[7:8]), c("N.S.", "N.C."))
+})
+
+test_that("los perdidos explicitos no llegan al fichero escrito", {
+  f <- sav_temporal(estudio_moderno(), "3557")
+  destino <- tempfile()
+  cis_sociodem(f, destino = destino, tabla = tabla_temporal(), avisos = FALSE,
+               NAs = FALSE)
+  vuelta <- haven::read_sav(paste0(destino, ".sav"))
+  expect_true(all(is.na(vuelta$ideologia[7:8])))
+  expect_false(any(c(98, 99) %in% attr(vuelta$ideologia, "labels")))
+})
+
+test_that("NAs = FALSE pone los perdidos en niveles N.S. y N.C. al final", {
   m <- estudio_moderno()
   m$CLASESUB <- NULL
   f <- sav_temporal(m, "3557")
   d <- cis_sociodem(f, tabla = tabla_temporal(), escribir = FALSE, avisos = FALSE,
                     NAs = FALSE)
-  expect_equal(tail(levels(d$clase), 1), "N.C.")
-  expect_true(is.ordered(d$clase))
-  expect_true(all(d$clase == "N.C."))
-  expect_false(anyNA(d$clase))
-  # el nivel esta aunque no haya perdidos, para que los estudios casen
-  expect_equal(tail(levels(d$genero), 1), "N.C.")
+  expect_equal(tail(levels(d$ideologia), 2), c("N.S.", "N.C."))
+  expect_true(is.ordered(d$ideologia))
+  # los niveles estan aunque no haya perdidos, para que los estudios casen
+  expect_equal(tail(levels(d$genero), 2), c("N.S.", "N.C."))
+  # una variable que no esta en el estudio no es un N.C.: nadie dejo de
+  # contestar. Se queda en NA, con los niveles puestos.
+  expect_true(all(is.na(d$clase)))
+  expect_equal(tail(levels(d$clase), 2), c("N.S.", "N.C."))
+})
+
+test_that("sin año de campo, generacion se queda en NA y no en N.C.", {
+  m <- estudio_moderno()
+  m$E103 <- NULL
+  f <- sav_temporal(m, "9999")
+  d <- suppressWarnings(cis_sociodem(f, estudio = 9999, tabla = tabla_temporal(),
+                                     escribir = FALSE, avisos = FALSE, NAs = FALSE))
+  expect_true(all(is.na(d$generacion)))
+  expect_equal(as.character(d$edad[7]), "N.C.")
 })
 
 test_that("los ficheros se escriben etiquetados aunque se devuelvan factores", {
@@ -102,7 +157,7 @@ test_that("los ficheros se escriben etiquetados aunque se devuelvan factores", {
   expect_equal(attr(vuelta$estudios, "labels")[["Universitarios"]], 500)
 })
 
-test_that("factores y NAs solo admiten TRUE o FALSE", {
+test_that("factores solo admite TRUE o FALSE, y NAs ademas nombres", {
   f <- sav_temporal(estudio_moderno(), "3557")
   expect_error(cis_sociodem(f, tabla = tabla_temporal(), escribir = FALSE,
                             avisos = FALSE, factores = "si"), "factores")

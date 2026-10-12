@@ -121,3 +121,31 @@ sav_temporal <- function(d, nombre = "estudio") {
 # Una tabla de correspondencias siempre nueva, para que los tests no se
 # pisen entre si ni escriban en el proyecto.
 tabla_temporal <- function() tempfile(fileext = ".tsv")
+
+# Preguntas de escala y Likert al modo del CIS, para salida = "completo".
+# Likert al modo del CIS: primero el polo alto, el "Regular" entre
+# parentesis de (NO LEER) y los perdidos en 8 y 9.
+.likert5 <- function(x) .v(x, "Valoracion de la situacion economica personal",
+  c(`Muy buena` = 1, Buena = 2, `(NO LEER) Regular` = 3, Mala = 4,
+    `Muy mala` = 5, `N.S.` = 8, `N.C.` = 9))
+
+.confianza4 <- function(x) .v(x, "Grado de confianza en el presidente",
+  c(`Mucha confianza` = 1, `Bastante confianza` = 2, `Poca confianza` = 3,
+    `Ninguna confianza` = 4, `N.C.` = 9))
+
+# Escala de estudio reciente: los intermedios etiquetados con su numero.
+.escala_moderna <- function(x) .v(x, "Pedro Sanchez",
+  c(`1 Muy mal` = 1, `2` = 2, `3` = 3, `4` = 4, `5` = 5, `6` = 6, `7` = 7,
+    `8` = 8, `9` = 9, `10 Muy bien` = 10, `No conoce` = 97, `N.S.` = 98,
+    `N.C.` = 99))
+
+con_preguntas <- function() {
+  m <- estudio_moderno()
+  m$ECOPER   <- .likert5(c(1, 2, 3, 4, 5, 8, 9, 1))
+  m$CONFPTE  <- .confianza4(c(1, 2, 3, 4, 9, 1, 2, 3))
+  m$VALSAN   <- .escala_moderna(c(1, 5, 10, 97, 98, 3, 7, 99))
+  m$ESTCIVIL <- .v(c(1, 2, 1, 2, 1, 2, 1, 9), "Estado civil",
+                   c(`Casado/a` = 1, `Soltero/a` = 2, `N.C.` = 9))
+  m$IA_I543  <- .v(c(0, 1, 2, 3, 4, 5, 6, 7), "Otras incidencias", c(No = 0))
+  m
+}

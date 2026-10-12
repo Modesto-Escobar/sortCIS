@@ -18,6 +18,11 @@
   "^n[.]?s|^n[.]?c|^no sabe|^no contesta|^no procede|^no_procede|",
   "^no conoce|^no consta|^no recuerda|^n[.]?p[.]?$")
 
+# El "No procede" de un filtro no es una respuesta que falta sino una
+# pregunta que no se hizo, lo mismo que un hueco: va siempre a NA, nunca a
+# un nivel explicito. ("No procede (filtro)" llega aqui sin el parentesis.)
+.NO_PROCEDE <- "^no procede|^no_procede|^n[.]?p[.]?$"
+
 # Palabras con que empiezan las categorias de una escala de intensidad.
 .INTENSIDAD <- paste0(
   "^(muy|mucho|mucha|bastante|algo|poco|poca|nada|ninguna|ninguno|regular|",
@@ -137,11 +142,46 @@
   factor(v, levels = orden, labels = nombres[orden], ordered = TRUE)
 }
 
+# Codigos perdidos de una variable, con su etiqueta y por orden de codigo:
+# los que lo dicen en la etiqueta ("N.S.", "No procede"...) y los que el
+# fichero declara missing de SPSS. 'crudo' es la variable leida con
+# user_na = TRUE; en la lectura normal los segundos ya son NA.
+.perdidos_etiquetados <- function(crudo) {
+  lv <- attr(crudo, "labels")
+  if (is.null(lv)) return(setNames(numeric(0), character(0)))
+  cod <- as.numeric(lv)
+  spss <- cod %in% attr(crudo, "na_values")
+  rng <- attr(crudo, "na_range")
+  if (length(rng) == 2) spss <- spss | (cod >= rng[1] & cod <= rng[2])
+  p <- setNames(cod, names(lv))[cod %in% .codigos_perdidos(crudo) | spss]
+  p[order(p)]
+}
+
+# Lleva los perdidos de un factor a niveles explicitos al final, uno por
+# cada etiqueta de perdido del original ("N.S.", "N.C.", "No conoce"...),
+# en vez de juntarlos todos. El filtro, con codigo ("No procede") o sin
+# el (un hueco), se queda en NA. Si el factor es ordenado lo sigue
+# siendo, con los perdidos detras del polo alto.
+.explicita <- function(f, crudo) {
+  p <- .perdidos_etiquetados(crudo)
+  p <- p[!grepl(.NO_PROCEDE, .norm(names(p)))]
+  if (!length(p)) return(f)
+  nuevos <- make.unique(c(levels(f), names(p)))[-seq_along(levels(f))]
+  v <- as.numeric(unclass(crudo))
+  txt <- as.character(f)
+  hueco <- is.na(txt) & v %in% p
+  txt[hueco] <- nuevos[match(v[hueco], p)]
+  g <- factor(txt, levels = c(levels(f), nuevos), ordered = is.ordered(f))
+  attr(g, "label") <- attr(f, "label")
+  attr(g, "perdidos") <- nuevos
+  g
+}
+
 # El resto de variables etiquetadas. A factor si todos sus valores tienen
 # etiqueta; si no, es una cantidad con algun valor etiquetado ("10 o mas",
-# el peso) y pasa a numero. Los perdidos, a NA, o al nivel "N.C." con
-# NAs = FALSE, como en las sociodemograficas.
-.otra_a_factor <- function(x, NAs = TRUE) {
+# el peso) y pasa a numero, con los perdidos a NA. En el factor, los
+# perdidos van a NA o a sus niveles explicitos (vease .explicita).
+.otra_a_factor <- function(x, explicito = FALSE, crudo = x) {
   lv <- attr(x, "labels")
   v <- as.numeric(zap_missing(x))
   v[v %in% .codigos_perdidos(x)] <- NA
@@ -149,46 +189,60 @@
     attr(v, "label") <- attr(x, "label")
     return(v)
   }
-  ok <- !as.numeric(lv) %in% .codigos_perdidos(x)
+  ok <- !as.numeric(lv) %in% .perdidos_etiquetados(crudo)
   lv <- lv[ok][order(as.numeric(lv[ok]))]
   f <- factor(v, levels = as.numeric(lv), labels = make.unique(names(lv)))
-  if (!NAs) {
-    f <- addNA(f, ifany = FALSE)
-    levels(f)[is.na(levels(f))] <- "N.C."
-  }
   attr(f, "label") <- attr(x, "label")
+  if (explicito) f <- .explicita(f, crudo)
   f
 }
 
 # Monta lo que se devuelve con salida = "completo": claves, las nueve
 # sociodemograficas, las escalas y Likert convertidas (columnas nuevas, en
 # minusculas) y despues el fichero original.
-.prepara_completo <- function(out, likert, escala, centrada, factores, NAs) {
+#
+# 'crudos' son las variables originales leidas con user_na = TRUE, con los
+# mismos nombres que en 'out'; solo hacen falta para los perdidos
+# explicitos. Devuelve, en el atributo "ordenadas_explicitas", las
+# ordenadas que se han quedado con los perdidos al final, para avisar.
+.prepara_completo <- function(out, likert, escala, centrada, factores, NAs,
+                              crudos = list(), motivos = list()) {
   claves <- intersect(c("orden", "numentr"), names(out))
   socio  <- names(.ETIQ)
   orig   <- setdiff(names(out), c(claves, socio))
+  crudo  <- function(v) if (is.null(crudos[[v]])) out[[v]] else crudos[[v]]
+  avisar <- character(0)
 
   tipo <- vapply(orig, function(v) .tipo_pregunta(out[[v]], v), character(1))
   nuevas <- list()
   for (v in orig[tipo != ""]) {
     x <- out[[v]]
+    nm <- tolower(v)
+    while (nm %in% c(names(out), names(nuevas))) nm <- paste0(nm, "_r")
     nv <- if (tipo[v] == "escala") {
       if (escala == "numerica") .escala_numerica(x) else .escala_factor(x)
     } else {
       if (likert == "numerica") .likert_numerica(x, centrada) else .likert_factor(x)
     }
+    # Un numero no puede llevar un "N.S." dentro: las numericas, siempre NA
+    if (is.factor(nv) && .na_explicito(nm, TRUE, NAs)) {
+      nv <- .explicita(nv, crudo(v))
+      avisar <- c(avisar, nm)
+    }
     attr(nv, "label") <- attr(x, "label")
-    nm <- tolower(v)
-    while (nm %in% c(names(out), names(nuevas))) nm <- paste0(nm, "_r")
     nuevas[[nm]] <- nv
   }
 
   if (factores) {
-    out <- .a_factores(out, NAs)
+    out <- .a_factores(out, NAs, motivos)
+    avisar <- c(intersect(.ORDINALES, socio[vapply(socio, function(cc)
+      .na_explicito(cc, TRUE, NAs), logical(1))]), avisar)
     for (v in orig) if (inherits(out[[v]], "haven_labelled"))
-      out[[v]] <- .otra_a_factor(out[[v]], NAs)
+      out[[v]] <- .otra_a_factor(out[[v]], .na_explicito(v, FALSE, NAs), crudo(v))
   }
 
   for (nm in names(nuevas)) out[[nm]] <- nuevas[[nm]]
-  out[c(claves, socio, names(nuevas), orig)]
+  out <- out[c(claves, socio, names(nuevas), orig)]
+  attr(out, "ordenadas_explicitas") <- avisar
+  out
 }

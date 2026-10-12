@@ -76,9 +76,39 @@
 #'   Ojo: `as.numeric()` sobre un factor da la posición del nivel, no el
 #'   código. En `estudios` (100-500), `profesional` (0, 1, 2, 6) y `clase`
 #'   (9 Otras) no coinciden; para los códigos, `factores = FALSE`.
-#' @param NAs Sólo cuenta con `factores = TRUE`. Si es `TRUE` (por defecto),
-#'   los perdidos quedan como `NA`. Si es `FALSE`, pasan a un nivel `"N.C."`
-#'   explícito, el último.
+#' @param NAs Qué se hace con los perdidos ("N.S.", "N.C.", "No conoce"...)
+#'   en lo que se devuelve como factor: o quedan como `NA`, o pasan a niveles
+#'   explícitos al final del factor. Para quitar después los que son pocos,
+#'   [recorta_perdidos()].
+#'   \describe{
+#'     \item{`"auto"`}{(por defecto) `NA` en los factores ordenados y
+#'       explícitos en los demás. Un nivel de perdido al final de un factor
+#'       ordenado lo pondría por encima de la categoría más alta, y quien use
+#'       el orden (`polr()`, `<`, los contrastes polinómicos) se lo creería.}
+#'     \item{`TRUE`}{Todos a `NA`.}
+#'     \item{`FALSE`}{Todos explícitos, también en los ordenados, que siguen
+#'       siendo ordenados con los perdidos detrás (se avisa).}
+#'     \item{Nombres de variables}{Esas a `NA` y todas las demás explícitas.
+#'       Valen los de las armonizadas (`"ideologia"`), los de las escalas y
+#'       Likert convertidas (`"escideol"`) y los originales (`"P5"`). Si
+#'       alguno no está en lo que se devuelve, se avisa.}
+#'   }
+#'   En las nueve armonizadas los niveles explícitos son siempre `"N.S."` y
+#'   `"N.C."`, aunque el estudio no tenga casos en alguno, para que se
+#'   apilen; va a `"N.S."` lo que en el original es "No sabe" y a `"N.C."`
+#'   todo lo demás. En las otras variables hay un nivel por cada etiqueta de
+#'   perdido del original, con su texto. Las escalas y Likert numéricas
+#'   llevan los perdidos siempre a `NA`, porque un número no puede llevar un
+#'   "N.S." dentro.
+#'
+#'   Lo que no es una respuesta que falta, sino una pregunta que no se hizo,
+#'   va siempre a `NA`: el "No procede" de un filtro, tenga código o sea un
+#'   hueco, una variable que no está en el estudio, o la `generacion` sin año
+#'   de campo. (En `profesional`, "N.P." es una categoría del esquema: quien
+#'   no trabaja.)
+#'
+#'   Sólo afecta a lo que se devuelve en R: en los ficheros escritos los
+#'   perdidos de las armonizadas siguen vacíos.
 #' @param likert Sólo cuenta con `salida = "completo"`. Cómo se devuelven las
 #'   preguntas de tipo Likert ("Muy buena" ... "Muy mala", "Mucha" ...
 #'   "Ninguna confianza", "Muy de acuerdo" ... "Muy en desacuerdo"):
@@ -156,7 +186,9 @@
 #' del fichero se añaden convertidas, como columnas nuevas con el nombre en
 #' minúsculas (`escideol`, `valoralideres_1`...), justo detrás de las nueve
 #' armonizadas. Las originales se quedan al final con su nombre en
-#' mayúsculas. Los "N.S.", "N.C.", "No procede" y "No conoce" van a `NA`.
+#' mayúsculas. Los "N.S.", "N.C.", "No procede" y "No conoce" van a `NA`, y
+#' en las que se piden como factor también pueden ir a niveles explícitos
+#' (véase `NAs`).
 #'
 #' Se reconocen por la forma de las etiquetas de valor, no por el nombre:
 #' \describe{
@@ -214,8 +246,15 @@
 #' b <- cis_sociodem("datos/sav/3557.sav", escribir = FALSE)
 #' todo <- rbind(a, b)
 #'
-#' # Los perdidos como nivel "N.C." explícito
+#' # Todos los perdidos como niveles explícitos ("N.S.", "N.C."...)
 #' d <- cis_sociodem("datos/sav/3557.sav", escribir = FALSE, NAs = FALSE)
+#'
+#' # Los de religion e ideologia a NA, los demás explícitos
+#' d <- cis_sociodem("datos/sav/3557.sav", escribir = FALSE,
+#'                   NAs = c("religion", "ideologia"))
+#'
+#' # Fuera los perdidos que no pasan del 10 %
+#' d <- recorta_perdidos(cis_sociodem("datos/sav/3557.sav", escribir = FALSE))
 #'
 #' # Etiquetadas con los códigos del esquema, como en el fichero
 #' d <- cis_sociodem("datos/sav/3557.sav", escribir = FALSE, factores = FALSE)
@@ -232,7 +271,7 @@ cis_sociodem <- function(fichero,
                          avisos   = TRUE,
                          formato  = c("sav", "dta", "ambos"),
                          factores = TRUE,
-                         NAs      = TRUE,
+                         NAs      = "auto",
                          likert   = c("numerica", "factor"),
                          escala   = c("numerica", "factor"),
                          centrada = FALSE,
@@ -247,8 +286,10 @@ cis_sociodem <- function(fichero,
     stop("'centrada' tiene que ser TRUE o FALSE.")
   if (!isTRUE(factores) && !isFALSE(factores))
     stop("'factores' tiene que ser TRUE o FALSE.")
-  if (!isTRUE(NAs) && !isFALSE(NAs))
-    stop("'NAs' tiene que ser TRUE o FALSE.")
+  if (!isTRUE(NAs) && !isFALSE(NAs) &&
+      !(is.character(NAs) && length(NAs) && !anyNA(NAs)))
+    stop("'NAs' tiene que ser TRUE, FALSE, \"auto\" o los nombres de las ",
+         "variables cuyos perdidos van a NA.")
   # Si no se pide formato pero el destino acaba en .dta, manda el destino:
   # cis_sociodem(f, destino = "x.dta") hace lo que parece que hace.
   auto_formato <- missing(formato)
@@ -261,9 +302,16 @@ cis_sociodem <- function(fichero,
   if (is.null(tabla))
     tabla <- file.path(base, "datos", "sociodem_correspondencias.tsv")
 
-  d <- suppressWarnings(
-    if (grepl("[.]sav$", fichero, ignore.case = TRUE)) read_sav(fichero)
-    else read_dta(fichero))
+  es_sav <- grepl("[.]sav$", fichero, ignore.case = TRUE)
+  d <- suppressWarnings(if (es_sav) read_sav(fichero) else read_dta(fichero))
+  # Para los perdidos explicitos hace falta saber que codigo tenia cada
+  # perdido, y la lectura normal convierte en NA los missing declarados en
+  # SPSS (el "No procede", a veces el N.S. y el N.C.). Se lee otra vez
+  # conservandolos. 'd' no cambia: la recodificacion sigue igual.
+  # zap_missing() sobre esta lectura no da lo mismo que la normal (pierde
+  # clases), por eso se lee dos veces.
+  d_na <- if (es_sav && !isTRUE(NAs))
+            suppressWarnings(read_sav(fichero, user_na = TRUE)) else d
 
   if (is.null(estudio)) estudio <- .saca_estudio(d, fichero)
   if (is.na(estudio))
@@ -323,6 +371,24 @@ cis_sociodem <- function(fichero,
 
   out <- out[, .SALIDA]
 
+  # Por que falta cada dato que falta (N.S. o N.C.), para los perdidos
+  # explicitos. 'generacion' y 'edad' salen las dos de la edad; 'estudios'
+  # mira la agrupada cuando la detallada no se pregunto.
+  g_na <- function(cc) if (is.na(elegida[cc])) NULL else d_na[[elegida[cc]]]
+  fuente_de <- c(genero = "genero", generacion = "edad", edad = "edad",
+                 ideologia = "ideologia", religion = "religion",
+                 estudios = "estudios", laboral = "laboral",
+                 profesional = "profesional", clase = "clase")
+  motivos <- lapply(setNames(names(fuente_de), names(fuente_de)), function(cc) {
+    fuentes <- list(g_na(fuente_de[[cc]]))
+    if (cc == "estudios" && !is.null(respaldo_est))
+      fuentes <- c(fuentes, list(d_na[[setdiff(.detecta_todas(d, .PATRON$estudios),
+                                               elegida["estudios"])[1]]]))
+    .motivo(out[[cc]], fuentes)
+  })
+  # Sin año de campo no hay generacion para nadie, conteste o no la edad
+  if (is.na(anyo)) motivos$generacion[] <- NA_character_
+
   # ---- etiquetas ----------------------------------------------------
   attr(out$estudio, "label") <- "Numero de estudio CIS"
   attr(out$cues,    "label") <- "Numero de cuestionario (tal cual viene en el fichero)"
@@ -352,12 +418,14 @@ cis_sociodem <- function(fichero,
     # fichero original chocaria con la 'estudios' armonizada. Manda la
     # armonizada, que es la que da la compatibilidad entre ficheros; la
     # original se conserva con el sufijo _ORIG.
+    orig_de <- setNames(names(d2), names(d2))
     choques <- names(d2)[tolower(names(d2)) %in% tolower(nuevas)]
     if (length(choques)) {
       for (v in choques) {
         nn <- paste0(v, "_ORIG")
         while (tolower(nn) %in% tolower(c(names(d2), nuevas))) nn <- paste0(nn, "1")
         names(d2)[names(d2) == v] <- nn
+        names(orig_de)[names(orig_de) == v] <- nn
       }
       if (avisos)
         cat("  nota: ", paste(choques, collapse = ", "),
@@ -365,6 +433,9 @@ cis_sociodem <- function(fichero,
             " con las variables armonizadas.\n", sep = "")
     }
     for (v in nuevas) d2[[v]] <- out[[v]]
+    # Las mismas variables con sus missing de SPSS, bajo el nombre que
+    # llevan en d2 (el _ORIG incluido)
+    crudos <- setNames(lapply(orig_de, function(o) d_na[[o]]), names(orig_de))
     out <- d2
   }
 
@@ -425,9 +496,28 @@ cis_sociodem <- function(fichero,
   # Los factores y las escalas, solo en lo que se devuelve: los ficheros ya
   # se han escrito etiquetados, con los codigos del esquema comun.
   if (salida == "completo") {
-    out <- .prepara_completo(out, likert, escala, centrada, factores, NAs)
+    out <- .prepara_completo(out, likert, escala, centrada, factores, NAs,
+                             crudos, motivos)
+    ord_exp <- attr(out, "ordenadas_explicitas")
+    attr(out, "ordenadas_explicitas") <- NULL
   } else if (factores) {
-    out <- .a_factores(out, NAs)
+    out <- .a_factores(out, NAs, motivos)
+    ord_exp <- .ORDINALES[vapply(.ORDINALES, .na_explicito, logical(1),
+                                 ordenado = TRUE, NAs = NAs)]
+  } else {
+    ord_exp <- character(0)
   }
+
+  if (is.character(NAs) && !identical(NAs, "auto")) {
+    nada <- setdiff(NAs, names(out))
+    if (length(nada))
+      warning("'NAs' nombra variables que no estan en lo que se devuelve: ",
+              paste(nada, collapse = ", "), call. = FALSE)
+  }
+  if (avisos && length(ord_exp))
+    cat("  nota: ", length(ord_exp), " variable(s) ordenada(s) llevan los",
+        " perdidos como niveles al final, fuera del orden: ",
+        paste(utils::head(ord_exp, 8), collapse = ", "),
+        if (length(ord_exp) > 8) ", ...", ".\n", sep = "")
   invisible(out)
 }

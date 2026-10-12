@@ -13,8 +13,44 @@
   común en R tiene que pasar `factores = FALSE`. `as.numeric()` sobre un
   factor da la posición del nivel y no el código, y en `estudios`,
   `profesional` y `clase` no coinciden.
-* Nuevo argumento `NAs`, `TRUE` por defecto. Con `NAs = FALSE` los perdidos
-  pasan a un nivel `"N.C."` explícito al final del factor.
+* **Nuevo argumento `NAs`**, que decide si los perdidos de lo que se
+  devuelve como factor quedan como `NA` o pasan a niveles explícitos al
+  final.
+  - `"auto"` (por defecto): `NA` en los factores ordenados y explícitos en
+    los demás. Un nivel «N.C.» al final de un factor ordenado diría que
+    está por encima de «Derecha», y `polr()` o los contrastes polinómicos
+    se lo creerían.
+  - `TRUE`: todos a `NA`. `FALSE`: todos explícitos, con aviso para los
+    ordenados.
+  - Un vector de nombres: esas variables a `NA` y el resto explícitas.
+    Valen las armonizadas, las escalas y Likert convertidas y las
+    originales; si alguna no está, se avisa.
+  - En las nueve armonizadas los niveles son siempre `"N.S."` y `"N.C."`,
+    con el «No sabe» del original separado del resto. En las demás, un
+    nivel por cada etiqueta de perdido del original («N.S.», «N.C.», «No
+    conoce», «No recuerda»...).
+  - Lo que no es una respuesta que falta sino una pregunta que no se hizo
+    va siempre a `NA`: el «No procede» de un filtro, tenga código o sea un
+    hueco, una variable que no está en el estudio, o la `generacion` sin año
+    de campo. En `profesional`, «N.P.» es una categoría del esquema.
+  - Para saber el código de cada perdido el fichero se lee además con
+    `user_na = TRUE`, porque la lectura normal convierte en `NA` los
+    missing declarados en SPSS. La recodificación no cambia: en el 1181,
+    2207, 2798, 3557, 3567 y 3577 los valores válidos son idénticos a los
+    de `NAs = TRUE`.
+  - Las escalas y Likert numéricas llevan los perdidos siempre a `NA`.
+  - Los ficheros escritos no cambian.
+* **Nueva función `recorta_perdidos()`**: manda a `NA` los niveles de
+  perdido explícitos que no pasan de un umbral, 0,10 por defecto. Un «N.C.»
+  del 0,4 % desaparece y un «N.S.» del 13 % se queda. Cada nivel se mira por
+  separado, sobre los casos con algún valor (sin los huecos de los filtros)
+  y sin ponderar. En el 3557 pasan a `NA` 135 de los 159 niveles de perdido
+  con casos; quedan sobre todo «No conoce» y «No sabe todavía».
+  - Sirve para un estudio o para varios apilados. Para varios, mejor
+    después de apilar: aplicada estudio a estudio, el «N.S.» de una variable
+    podría ser categoría en uno y `NA` en otro.
+  - En las armonizadas el nivel se conserva aunque se vacíe, para que los
+    factores sigan casando.
 * **Escalas y Likert con `salida = "completo"`.** Las preguntas de escala
   (0-10, 1-10, 1-7: ideología, valoración de líderes, probabilidad de
   voto...) y las de tipo Likert ("Muy buena" ... "Muy mala", "Mucha" ...

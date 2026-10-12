@@ -15,7 +15,7 @@ cis_sociodem(
   avisos = TRUE,
   formato = c("sav", "dta", "ambos"),
   factores = TRUE,
-  NAs = TRUE,
+  NAs = "auto",
   likert = c("numerica", "factor"),
   escala = c("numerica", "factor"),
   centrada = FALSE,
@@ -97,9 +97,39 @@ Ojo: \code{as.numeric()} sobre un factor da la posición del nivel, no el
 código. En \code{estudios} (100-500), \code{profesional} (0, 1, 2, 6) y \code{clase}
 (9 Otras) no coinciden; para los códigos, \code{factores = FALSE}.}
 
-\item{NAs}{Sólo cuenta con \code{factores = TRUE}. Si es \code{TRUE} (por defecto),
-los perdidos quedan como \code{NA}. Si es \code{FALSE}, pasan a un nivel \code{"N.C."}
-explícito, el último.}
+\item{NAs}{Qué se hace con los perdidos ("N.S.", "N.C.", "No conoce"...)
+en lo que se devuelve como factor: o quedan como \code{NA}, o pasan a niveles
+explícitos al final del factor. Para quitar después los que son pocos,
+\code{\link[=recorta_perdidos]{recorta_perdidos()}}.
+\describe{
+\item{\code{"auto"}}{(por defecto) \code{NA} en los factores ordenados y
+explícitos en los demás. Un nivel de perdido al final de un factor
+ordenado lo pondría por encima de la categoría más alta, y quien use
+el orden (\code{polr()}, \code{<}, los contrastes polinómicos) se lo creería.}
+\item{\code{TRUE}}{Todos a \code{NA}.}
+\item{\code{FALSE}}{Todos explícitos, también en los ordenados, que siguen
+siendo ordenados con los perdidos detrás (se avisa).}
+\item{Nombres de variables}{Esas a \code{NA} y todas las demás explícitas.
+Valen los de las armonizadas (\code{"ideologia"}), los de las escalas y
+Likert convertidas (\code{"escideol"}) y los originales (\code{"P5"}). Si
+alguno no está en lo que se devuelve, se avisa.}
+}
+En las nueve armonizadas los niveles explícitos son siempre \code{"N.S."} y
+\code{"N.C."}, aunque el estudio no tenga casos en alguno, para que se
+apilen; va a \code{"N.S."} lo que en el original es "No sabe" y a \code{"N.C."}
+todo lo demás. En las otras variables hay un nivel por cada etiqueta de
+perdido del original, con su texto. Las escalas y Likert numéricas
+llevan los perdidos siempre a \code{NA}, porque un número no puede llevar un
+"N.S." dentro.
+
+Lo que no es una respuesta que falta, sino una pregunta que no se hizo,
+va siempre a \code{NA}: el "No procede" de un filtro, tenga código o sea un
+hueco, una variable que no está en el estudio, o la \code{generacion} sin año
+de campo. (En \code{profesional}, "N.P." es una categoría del esquema: quien
+no trabaja.)
+
+Sólo afecta a lo que se devuelve en R: en los ficheros escritos los
+perdidos de las armonizadas siguen vacíos.}
 
 \item{likert}{Sólo cuenta con \code{salida = "completo"}. Cómo se devuelven las
 preguntas de tipo Likert ("Muy buena" ... "Muy mala", "Mucha" ...
@@ -197,7 +227,9 @@ Con \code{salida = "completo"}, las preguntas de escala y las de tipo Likert
 del fichero se añaden convertidas, como columnas nuevas con el nombre en
 minúsculas (\code{escideol}, \code{valoralideres_1}...), justo detrás de las nueve
 armonizadas. Las originales se quedan al final con su nombre en
-mayúsculas. Los "N.S.", "N.C.", "No procede" y "No conoce" van a \code{NA}.
+mayúsculas. Los "N.S.", "N.C.", "No procede" y "No conoce" van a \code{NA}, y
+en las que se piden como factor también pueden ir a niveles explícitos
+(véase \code{NAs}).
 
 Se reconocen por la forma de las etiquetas de valor, no por el nombre:
 \describe{
@@ -256,8 +288,15 @@ a <- cis_sociodem("datos/sav/3528.sav", escribir = FALSE)
 b <- cis_sociodem("datos/sav/3557.sav", escribir = FALSE)
 todo <- rbind(a, b)
 
-# Los perdidos como nivel "N.C." explícito
+# Todos los perdidos como niveles explícitos ("N.S.", "N.C."...)
 d <- cis_sociodem("datos/sav/3557.sav", escribir = FALSE, NAs = FALSE)
+
+# Los de religion e ideologia a NA, los demás explícitos
+d <- cis_sociodem("datos/sav/3557.sav", escribir = FALSE,
+                  NAs = c("religion", "ideologia"))
+
+# Fuera los perdidos que no pasan del 10 \%
+d <- recorta_perdidos(cis_sociodem("datos/sav/3557.sav", escribir = FALSE))
 
 # Etiquetadas con los códigos del esquema, como en el fichero
 d <- cis_sociodem("datos/sav/3557.sav", escribir = FALSE, factores = FALSE)

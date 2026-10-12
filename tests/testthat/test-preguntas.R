@@ -1,32 +1,5 @@
 # Escalas y Likert del resto del fichero, con salida = "completo".
 
-# Likert al modo del CIS: primero el polo alto, el "Regular" entre
-# parentesis de (NO LEER) y los perdidos en 8 y 9.
-.likert5 <- function(x) .v(x, "Valoracion de la situacion economica personal",
-  c(`Muy buena` = 1, Buena = 2, `(NO LEER) Regular` = 3, Mala = 4,
-    `Muy mala` = 5, `N.S.` = 8, `N.C.` = 9))
-
-.confianza4 <- function(x) .v(x, "Grado de confianza en el presidente",
-  c(`Mucha confianza` = 1, `Bastante confianza` = 2, `Poca confianza` = 3,
-    `Ninguna confianza` = 4, `N.C.` = 9))
-
-# Escala de estudio reciente: los intermedios etiquetados con su numero.
-.escala_moderna <- function(x) .v(x, "Pedro Sanchez",
-  c(`1 Muy mal` = 1, `2` = 2, `3` = 3, `4` = 4, `5` = 5, `6` = 6, `7` = 7,
-    `8` = 8, `9` = 9, `10 Muy bien` = 10, `No conoce` = 97, `N.S.` = 98,
-    `N.C.` = 99))
-
-con_preguntas <- function() {
-  m <- estudio_moderno()
-  m$ECOPER   <- .likert5(c(1, 2, 3, 4, 5, 8, 9, 1))
-  m$CONFPTE  <- .confianza4(c(1, 2, 3, 4, 9, 1, 2, 3))
-  m$VALSAN   <- .escala_moderna(c(1, 5, 10, 97, 98, 3, 7, 99))
-  m$ESTCIVIL <- .v(c(1, 2, 1, 2, 1, 2, 1, 9), "Estado civil",
-                   c(`Casado/a` = 1, `Soltero/a` = 2, `N.C.` = 9))
-  m$IA_I543  <- .v(c(0, 1, 2, 3, 4, 5, 6, 7), "Otras incidencias", c(No = 0))
-  m
-}
-
 completo <- function(...) {
   f <- sav_temporal(con_preguntas(), "3557")
   cis_sociodem(f, salida = "completo", tabla = tabla_temporal(),
@@ -104,14 +77,55 @@ test_that("las IA_ se quitan salvo con IAs = TRUE, y nunca se convierten", {
 })
 
 test_that("con factores = TRUE el resto etiquetado pasa a factor", {
-  d <- completo()
+  d <- completo(NAs = TRUE)
   expect_true(is.factor(d$ESTCIVIL))
   expect_equal(levels(d$ESTCIVIL), c("Casado/a", "Soltero/a"))
   expect_true(is.na(d$ESTCIVIL[8]))
   # un valor sin etiqueta: es una cantidad, pasa a numero
   expect_true(is.numeric(completo(IAs = TRUE)$IA_I543))
-  d2 <- completo(NAs = FALSE)
+  # por defecto, sin orden: el perdido es un nivel, con su etiqueta
+  d2 <- completo()
+  expect_equal(levels(d2$ESTCIVIL), c("Casado/a", "Soltero/a", "N.C."))
   expect_equal(as.character(d2$ESTCIVIL[8]), "N.C.")
+})
+
+test_that("cada etiqueta de perdido del original es su propio nivel", {
+  m <- con_preguntas()
+  m$ESTCIVIL <- .v(c(1, 2, 8, 9, 1, NA, 1, 9), "Estado civil",
+                   c(`Casado/a` = 1, `Soltero/a` = 2, `N.S.` = 8, `N.C.` = 9))
+  f <- sav_temporal(m, "3557")
+  d <- cis_sociodem(f, salida = "completo", tabla = tabla_temporal(),
+                    escribir = FALSE, avisos = FALSE)
+  expect_equal(levels(d$ESTCIVIL), c("Casado/a", "Soltero/a", "N.S.", "N.C."))
+  expect_equal(as.character(d$ESTCIVIL[3:4]), c("N.S.", "N.C."))
+  # un hueco sin codigo no es ni N.S. ni N.C.
+  expect_true(is.na(d$ESTCIVIL[6]))
+})
+
+test_that("escalas y Likert: numericas siempre a NA; como factor, segun NAs", {
+  d <- completo(NAs = FALSE)
+  expect_equal(d$ecoper, c(5, 4, 3, 2, 1, NA, NA, 5), ignore_attr = TRUE)
+  expect_equal(d$valsan, c(1, 5, 10, NA, NA, 3, 7, NA), ignore_attr = TRUE)
+  # como factor y por defecto: ordenadas, asi que NA
+  d <- completo(likert = "factor", escala = "factor")
+  expect_true(is.na(d$ecoper[6]))
+  expect_false("N.S." %in% levels(d$ecoper))
+  # pedidas explicitas: siguen ordenadas, con los perdidos detras
+  d <- completo(likert = "factor", escala = "factor", NAs = FALSE)
+  expect_true(is.ordered(d$ecoper))
+  expect_equal(tail(levels(d$ecoper), 2), c("N.S.", "N.C."))
+  expect_equal(as.character(d$ecoper[6:7]), c("N.S.", "N.C."))
+  expect_equal(as.character(d$valsan[4]), "No conoce")
+})
+
+test_that("NAs con nombres: esas a NA y las demas explicitas", {
+  d <- completo(NAs = c("ESTCIVIL", "religion"))
+  expect_true(is.na(d$ESTCIVIL[8]))
+  expect_true(is.na(d$religion[8]))
+  expect_equal(as.character(d$laboral[8]), "N.C.")
+  # una ordenada que no se nombra tambien va explicita
+  expect_equal(as.character(d$ideologia[7:8]), c("N.S.", "N.C."))
+  expect_warning(completo(NAs = c("NOEXISTE", "religion")), "NOEXISTE")
 })
 
 test_that("con factores = FALSE el original se queda etiquetado", {
