@@ -95,7 +95,7 @@ equivocados, así que la recodificación también va por la etiqueta del valor.
 | `religion` | 1 Practicante, 2 Católico no practicante, 3 Otras |
 | `estudios` | 100 Sin estudios … 500 Universitarios |
 | `laboral` | 1 Trabaja … 5 Doméstico |
-| `profesional` | 0 N.P., 1 Asalariado, 2 Empresario/autónomo, 6 Otra |
+| `profesional` | 0 N.P. (no trabaja), 1 Asalariado, 2 Empresario/autónomo, 6 Otra |
 | `clase` | 1 Alta/media-alta … 9 Otras |
 
 ## La tabla de correspondencias

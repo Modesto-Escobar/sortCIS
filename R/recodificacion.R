@@ -137,7 +137,7 @@
   if (moderno) {
     out[grepl("^catolico.* no practicante", txt)] <- 2
     out[is.na(out) & grepl("^catolico.* practicante", txt)] <- 1
-    out[is.na(out) & !is.na(txt) & !grepl("^n[.]?c", txt)] <- 3
+    out[is.na(out) & !is.na(txt) & !grepl(.PERDIDO, txt)] <- 3
   } else {
     es_cat <- grepl("^catolico", txt)
     # Por defecto el catolico cuenta como practicante; pasa a "catolico
@@ -151,7 +151,7 @@
         out[es_cat & !is.na(ptxt) & grepl("^casi nunca|^nunca", ptxt)] <- 2
       }
     }
-    out[!es_cat & !is.na(txt) & !grepl("^n[.]?c", txt)] <- 3
+    out[!es_cat & !is.na(txt) & !grepl(.PERDIDO, txt)] <- 3
   }
   out
 }
@@ -223,7 +223,31 @@
   "^empresario|autonomo"             = 2,
   "^ayuda familiar|cooperativa|^otra situacion" = 6
 )
-.rec_profesional <- function(x) .por_etiqueta(x, .REGLAS_PROFESIONAL)
+
+# 'profesional' es la situacion profesional ACTUAL: a quien no trabaja,
+# 0 N.P. Hace falta porque el CIS cambio la pregunta:
+#   - 2207, 2798: se pregunta a todos, por el empleo actual o el ultimo.
+#     Pensionistas, parados y amas de casa tienen valor.
+#   - 3557 y siguientes: solo a quien trabaja. El resto lleva el 0 "No
+#     procede", declarado ademas missing de SPSS, con lo que la lectura
+#     normal lo deja en NA y el N.P. se perdia.
+# Con el filtro de 'laboral' las dos formas dicen lo mismo. En los
+# recientes coincide caso por caso con el 0 del fichero (N.P. si y solo
+# si no trabaja, sin excepciones en el 3557, 3567 y 3577); en los antiguos
+# se pierde el ultimo empleo de los no ocupados, que sigue en la variable
+# cruda (salida = "auditoria").
+#
+# Va a N.P. cualquier respuesta de 'laboral' que no sea "Trabaja" ni un
+# perdido; con 'laboral' perdido manda lo que diga la propia pregunta.
+.rec_profesional <- function(x, laboral = NULL) {
+  out <- .por_etiqueta(x, .REGLAS_PROFESIONAL)
+  et <- if (is.null(laboral)) NULL else .valores(laboral)
+  if (is.null(et)) return(out)
+  txt <- et[as.character(as.numeric(zap_missing(laboral)))]
+  no_trabaja <- !is.na(txt) & !grepl("^trabaja", txt) & !grepl(.PERDIDO, txt)
+  out[no_trabaja] <- 0
+  out
+}
 
 .REGLAS_CLASE <- c(
   "^n[.]?c"                                   = NA,

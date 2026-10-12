@@ -78,6 +78,30 @@ test_that("profesional: mismas categorias con codigos distintos dan el mismo res
   expect_equal(.rec_profesional(a$P43),     esperado)
 })
 
+test_that("profesional es la situacion actual: quien no trabaja es N.P.", {
+  # Trabaja, jubilado, parado, estudiante, domestico, otra, trabaja, N.C.
+  esperado <- c(1, 0, 0, 0, 0, 0, 1, NA)
+  expect_equal(.rec_profesional(m$SITPROF, m$SITLAB), esperado)
+  expect_equal(.rec_profesional(a$P43, a$P40),        esperado)
+  # con 'laboral' perdido manda la propia pregunta
+  lab <- haven::labelled(c(9, 9), labels = c(Trabaja = 1, `N.C.` = 9))
+  pro <- haven::labelled(c(1, 2), labels = c(`Asalariado/a` = 1, `Empresario/a` = 2))
+  expect_equal(.rec_profesional(pro, lab), c(1, 2))
+})
+
+test_that("profesional: el 0 No procede declarado missing de SPSS acaba en N.P.", {
+  # Como en el 3557: solo se pregunta a quien trabaja y el resto lleva un
+  # 0 que SPSS declara missing, asi que la lectura normal lo deja en NA
+  m2 <- estudio_moderno()
+  m2$SITPROF <- haven::labelled_spss(c(1, 0, 0, 0, 0, 0, 2, 0),
+    labels = c(`No procede` = 0, `Asalariado/a` = 1, `Empresario/a` = 2),
+    na_values = 0, label = "Situación profesional de la persona entrevistada")
+  f <- sav_temporal(m2, "3557")
+  d <- cis_sociodem(f, tabla = tabla_temporal(), escribir = FALSE,
+                    avisos = FALSE, factores = FALSE)
+  expect_equal(as.numeric(d$profesional), c(1, 0, 0, 0, 0, 0, 2, NA))
+})
+
 test_that("clase subjetiva", {
   esperado <- c(1, 1, 2, 4, 3, 4, 9, NA)
   expect_equal(.rec_clase(m$CLASESUB), esperado)

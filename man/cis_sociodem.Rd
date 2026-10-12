@@ -172,7 +172,13 @@ etiqueta del valor y no por el número.}
 \item{\code{laboral}}{1 Trabaja, 2 Pensionista, 3 Parado, 4 Estudiante,
 5 Doméstico.}
 \item{\code{profesional}}{0 N.P., 1 Asalariado por cuenta ajena,
-2 Empresario o autónomo, 6 Otra situación.}
+2 Empresario o autónomo, 6 Otra situación. Es la situación
+profesional \strong{actual}: quien no trabaja, según \code{laboral}, es 0 N.P.
+El CIS cambió la pregunta: hasta el 2798 se hacía a todos, por el
+empleo actual o el último, y desde el 3557 sólo a quien trabaja. Con
+el filtro, los estudios dicen lo mismo; el último empleo de los no
+ocupados de los estudios antiguos queda en la variable cruda
+(\code{salida = "auditoria"}).}
 \item{\code{clase}}{1 Alta/media-alta, 2 Media, 3 Trabajador, 4 Baja,
 9 Otras.}
 }

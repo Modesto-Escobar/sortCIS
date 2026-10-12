@@ -38,6 +38,27 @@
   fichero escrito y de lo que se devuelve. El nuevo argumento `IAs = TRUE`
   las conserva.
 
+* **`profesional` es la situación profesional actual.** Quien no trabaja,
+  según `laboral`, pasa a 0 N.P.; con `laboral` perdido manda la propia
+  pregunta. **Cambia el resultado en todos los estudios que la tienen:**
+  - En el 3557, 3567 y 3577 la pregunta sólo se hace a quien trabaja y el
+    resto lleva el 0 «No procede», declarado missing de SPSS. La lectura lo
+    dejaba en `NA` y la categoría N.P. salía vacía: unos 1.600 casos por
+    estudio que eran N.P. quedaban como perdidos. Ahora son N.P., y
+    coinciden caso por caso con el 0 del fichero.
+  - En el 2207 y el 2798 la pregunta se hacía a todos, por el empleo actual
+    o el último, así que pensionistas, parados y amas de casa tenían valor.
+    Ahora son N.P. (4.162 casos en el 2207 y 1.347 en el 2798). Es lo que
+    hace falta para que `profesional` signifique lo mismo en todos los
+    estudios; el último empleo sigue en la variable cruda, con
+    `salida = "auditoria"`.
+  - Si el estudio no tiene la pregunta, como el 1181, `profesional` sigue
+    vacía aunque haya `laboral`.
+  - Las otras ocho variables no cambian en ninguno de los seis estudios.
+* **`religion`**: un «N.S.» o un «No procede» en la religiosidad se contaba
+  como «3 Otras», porque sólo se apartaba el «N.C.». Ahora van a perdido,
+  como en las demás variables. En los seis estudios comprobados la
+  religiosidad sólo trae «N.C.», así que el resultado no cambia.
 * **`ideologia` en el 3577.** Su etiqueta es «Escala (1-10) de
   autoubicación ideológica», con el paréntesis en medio. Al normalizar las
   etiquetas se cortaba desde el primer paréntesis hasta el final, la
