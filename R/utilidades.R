@@ -21,9 +21,29 @@
 }
 
 .etiqueta <- function(x) {
-  L <- attr(x, "label")
+  L <- attr(x, "label", exact = TRUE)
   if (is.null(L) || length(L) != 1 || is.na(L)) return("")
   as.character(L)
+}
+
+# Pone a cada columna su etiqueta por nombre (cis_sociodem(etiquetas =
+# TRUE)). Sin etiqueta, se queda el nombre. Si dos coinciden, la primera
+# se queda con la etiqueta y las demas llevan su nombre entre parentesis:
+# las armonizadas van delante, asi que el SEXO del original, que se
+# etiqueta igual que 'genero', es el que se lleva el "(SEXO)". Los
+# nombres de antes quedan en el atributo "nombres", con las etiquetas
+# como nombres.
+.nombres_etiqueta <- function(d) {
+  viejo <- names(d)
+  nuevo <- vapply(d, function(x) trimws(.etiqueta(x)), character(1),
+                  USE.NAMES = FALSE)
+  nuevo[nuevo == ""] <- viejo[nuevo == ""]
+  rep <- duplicated(nuevo)
+  nuevo[rep] <- paste0(nuevo[rep], " (", viejo[rep], ")")
+  nuevo <- make.unique(nuevo)
+  names(d) <- nuevo
+  attr(d, "nombres") <- setNames(viejo, nuevo)
+  d
 }
 
 # Etiquetas de los valores de una variable, ya normalizadas y en el
@@ -32,4 +52,29 @@
   lv <- attr(x, "labels")
   if (is.null(lv)) return(NULL)
   setNames(.norm(names(lv)), as.character(as.numeric(lv)))
+}
+
+# Lee un .sav sin el aviso "Invalid date string" de la libreria de lectura,
+# que sale del codigo C (no es un warning de R, asi que suppressWarnings no
+# lo calla). Lo provoca la fecha de creacion de la cabecera (9 bytes desde
+# el 92, "dd mmm yy") cuando viene mal formada, como en el 3577 ("22 028 26").
+# Si es asi, se lee una copia temporal con la fecha reemplazada; los datos y
+# las etiquetas no cambian.
+.lee_sav <- function(fichero, ...) {
+  cab <- tryCatch(readBin(fichero, "raw", 101L), error = function(e) raw(0))
+  if (length(cab) == 101L && rawToChar(cab[1:4]) == "$FL2") {
+    fecha <- rawToChar(cab[93:101])
+    if (!grepl("^[0-9]{2} [A-Za-z]{3} [0-9]{2}$", fecha)) {
+      tmp <- tempfile(fileext = ".sav")
+      on.exit(unlink(tmp), add = TRUE)
+      if (file.copy(fichero, tmp)) {
+        con <- file(tmp, "r+b")
+        seek(con, 92L, rw = "write")
+        writeBin(charToRaw("01 Jan 70"), con)
+        close(con)
+        fichero <- tmp
+      }
+    }
+  }
+  read_sav(fichero, ...)
 }

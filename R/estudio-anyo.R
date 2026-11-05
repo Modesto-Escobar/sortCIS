@@ -37,8 +37,10 @@
 .saca_anyo <- function(d, estudio, base) {
   # 1) la propia variable de fecha de realizacion
   et <- .norm(vapply(d, .etiqueta, character(1)))
-  v  <- names(d)[grepl("^fecha de realizacion", et) & grepl("ano", et)]
-  if (!length(v)) v <- intersect("E103", names(d))
+  # Segun el estudio la etiqueta es "Fecha de realizacion: ano" (E103) o
+  # "Ano de realizacion" (IA_E1_ANYO, desde el 3567), con el año a dos cifras.
+  v  <- names(d)[grepl("^(fecha|ano) de realizacion", et) & grepl("ano", et)]
+  if (!length(v)) v <- intersect(c("E103", "IA_E1_ANYO"), names(d))
   if (length(v)) {
     a <- unique(as.numeric(zap_missing(d[[v[1]]])))
     a <- a[!is.na(a)]

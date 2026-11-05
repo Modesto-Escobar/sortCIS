@@ -128,6 +128,37 @@
 #'   por `IA_` (incidencias de contacto, supervisión de la entrevista...),
 #'   tanto del fichero que se escribe como de lo que se devuelve. Con `TRUE`
 #'   se conservan.
+#' @param etiquetas Si es `TRUE`, las columnas del `data.frame` que se
+#'   devuelve se llaman como su etiqueta (`"Género"`, `"Ideología"`...) y
+#'   no por su nombre. Las que no tienen etiqueta conservan el nombre. Si
+#'   dos columnas tienen la misma etiqueta, la primera se queda con ella y
+#'   las demás llevan detrás su nombre entre paréntesis: con `salida =
+#'   "completo"`, una escala y su conversión comparten etiqueta, y la
+#'   original pasa a, por ejemplo, `"Pedro Sanchez (VALSAN)"`. Las
+#'   armonizadas van delante, así que nunca les toca el paréntesis. Los
+#'   nombres de antes quedan en el atributo `"nombres"` del
+#'   `data.frame`, con las etiquetas como nombres. Por defecto, `FALSE`.
+#'
+#'   Sólo afecta a lo que se devuelve en R: los ficheros `.sav` y `.dta` se
+#'   escriben siempre con los nombres de variable. `NAs` sigue tomando los
+#'   nombres, no las etiquetas.
+#' @param grabar Qué se graba en el fichero. Con `"original"` (por
+#'   defecto), las variables tal como vienen del CIS, más las armonizadas.
+#'   Con `"como_R"` y `salida = "completo"`, también las escalas y Likert
+#'   convertidas. El orden es otro que en R: primero las armonizadas y las
+#'   convertidas, luego el cuestionario desde la `P1` y, al final, la
+#'   cabecera del original (lo anterior a la `P1`: `ESTUDIO`, `REGISTRO`,
+#'   `CUES`, territorio, `SEXO`, `EDAD`, nacionalidad...) con `orden` y
+#'   `numentr`. En el fichero van siempre como números, aunque en R se
+#'   pidan como factor, y sin etiquetas de valor (sólo con la de variable),
+#'   para que SPSS y lo que lee el `.sav` las tomen por cuantitativas y no
+#'   por nominales. Van orientadas de modo que el valor alto es el polo alto
+#'   ("mucho", "muy bien", "de acuerdo"): las Likert, ya invertidas (y
+#'   centradas, con `centrada = TRUE`); las escalas, con su valor tal cual.
+#'   Las armonizadas siguen con los códigos del esquema común y las
+#'   originales se conservan; como SPSS no distingue mayúsculas, la
+#'   original que coincide con su convertida (`ESCIDEOL` con `escideol`) se
+#'   graba con el sufijo `_ORIG`. Con otras salidas no cambia nada.
 #'
 #' @return Invisiblemente, el `data.frame` de salida. El efecto que interesa
 #'   es el fichero escrito en `destino` (salvo con `escribir = FALSE`) y la
@@ -258,6 +289,14 @@
 #'
 #' # Etiquetadas con los códigos del esquema, como en el fichero
 #' d <- cis_sociodem("datos/sav/3557.sav", escribir = FALSE, factores = FALSE)
+#'
+#' # Las columnas con el nombre de su etiqueta; el fichero, con los nombres
+#' d <- cis_sociodem("datos/sav/3557.sav", etiquetas = TRUE)
+#' attr(d, "nombres")   # de etiqueta a nombre
+#'
+#' # El fichero, con las escalas y Likert convertidas, como en R
+#' d <- cis_sociodem("datos/sav/3557.sav", salida = "completo",
+#'                   grabar = "como_R")
 #' }
 #'
 #' @export
@@ -275,9 +314,12 @@ cis_sociodem <- function(fichero,
                          likert   = c("numerica", "factor"),
                          escala   = c("numerica", "factor"),
                          centrada = FALSE,
-                         IAs      = FALSE) {
+                         IAs      = FALSE,
+                         etiquetas = FALSE,
+                         grabar   = c("original", "como_R")) {
 
   salida <- match.arg(salida)
+  grabar <- match.arg(grabar)
   if (!isTRUE(IAs) && !isFALSE(IAs))
     stop("'IAs' tiene que ser TRUE o FALSE.")
   likert <- match.arg(likert)
@@ -286,6 +328,8 @@ cis_sociodem <- function(fichero,
     stop("'centrada' tiene que ser TRUE o FALSE.")
   if (!isTRUE(factores) && !isFALSE(factores))
     stop("'factores' tiene que ser TRUE o FALSE.")
+  if (!isTRUE(etiquetas) && !isFALSE(etiquetas))
+    stop("'etiquetas' tiene que ser TRUE o FALSE.")
   if (!isTRUE(NAs) && !isFALSE(NAs) &&
       !(is.character(NAs) && length(NAs) && !anyNA(NAs)))
     stop("'NAs' tiene que ser TRUE, FALSE, \"auto\" o los nombres de las ",
@@ -303,7 +347,7 @@ cis_sociodem <- function(fichero,
     tabla <- file.path(base, "datos", "sociodem_correspondencias.tsv")
 
   es_sav <- grepl("[.]sav$", fichero, ignore.case = TRUE)
-  d <- suppressWarnings(if (es_sav) read_sav(fichero) else read_dta(fichero))
+  d <- suppressWarnings(if (es_sav) .lee_sav(fichero) else read_dta(fichero))
   # Para los perdidos explicitos hace falta saber que codigo tenia cada
   # perdido, y la lectura normal convierte en NA los missing declarados en
   # SPSS (el "No procede", a veces el N.S. y el N.C.). Se lee otra vez
@@ -311,7 +355,7 @@ cis_sociodem <- function(fichero,
   # zap_missing() sobre esta lectura no da lo mismo que la normal (pierde
   # clases), por eso se lee dos veces.
   d_na <- if (es_sav && !isTRUE(NAs))
-            suppressWarnings(read_sav(fichero, user_na = TRUE)) else d
+            suppressWarnings(.lee_sav(fichero, user_na = TRUE)) else d
 
   if (is.null(estudio)) estudio <- .saca_estudio(d, fichero)
   if (is.na(estudio))
@@ -390,10 +434,10 @@ cis_sociodem <- function(fichero,
   if (is.na(anyo)) motivos$generacion[] <- NA_character_
 
   # ---- etiquetas ----------------------------------------------------
-  attr(out$estudio, "label") <- "Numero de estudio CIS"
-  attr(out$cues,    "label") <- "Numero de cuestionario (tal cual viene en el fichero)"
-  attr(out$orden,   "label") <- "Posicion en el fichero de origen (clave con FID3978abrev)"
-  attr(out$numentr, "label") <- "N unico de entrevistado (estudio*100000+orden)"
+  attr(out$estudio, "label") <- "Estudio"
+  attr(out$cues,    "label") <- "Cuestionario"
+  attr(out$orden,   "label") <- "Posición en el fichero"
+  attr(out$numentr, "label") <- "Estudio*100000+orden"
   for (cc in names(.ETIQ)) {
     out[[cc]] <- labelled(as.numeric(out[[cc]]), labels = .ETIQ[[cc]]$val,
                           label = .ETIQ[[cc]]$lab)
@@ -486,10 +530,27 @@ cis_sociodem <- function(fichero,
               sub("[.](sav|dta)$", "_soc", fichero, ignore.case = TRUE)
             else
               sub("[.](sav|dta)$", "", destino, ignore.case = TRUE)
+    graba <- out
+    if (grabar == "como_R" && salida == "completo") {
+      graba <- .para_grabar(out, centrada && likert == "numerica")
+      ren <- attr(graba, "renombradas")
+      attr(graba, "renombradas") <- NULL
+      if (avisos && length(ren))
+        cat("  nota: en el fichero, ", paste(ren, collapse = ", "),
+            " se graba(n) con _ORIG para no chocar en SPSS con su",
+            " convertida.\n", sep = "")
+    }
+    graba <- .quita_etiquetas_decimales(graba)
+    zap <- attr(graba, "sin_etiquetas")
+    attr(graba, "sin_etiquetas") <- NULL
+    if (avisos && length(zap))
+      cat("  nota: en el fichero, ", paste(zap, collapse = ", "),
+          " va(n) sin etiquetas de valor: tiene(n) decimales y cada",
+          " valor llevaba la suya.\n", sep = "")
     for (e in .EXT[[formato]]) {
       f_sal <- paste0(raiz, ".", e)
-      if (e == "sav") write_sav(out, f_sal) else .escribe_dta(out, f_sal)
-      if (avisos) cat("  -> ", f_sal, "  (", ncol(out), " variables)\n", sep = "")
+      if (e == "sav") write_sav(graba, f_sal) else .escribe_dta(graba, f_sal)
+      if (avisos) cat("  -> ", f_sal, "  (", ncol(graba), " variables)\n", sep = "")
     }
   }
 
@@ -500,6 +561,7 @@ cis_sociodem <- function(fichero,
                              crudos, motivos)
     ord_exp <- attr(out, "ordenadas_explicitas")
     attr(out, "ordenadas_explicitas") <- NULL
+    attr(out, "convertidas") <- NULL
   } else if (factores) {
     out <- .a_factores(out, NAs, motivos)
     ord_exp <- .ORDINALES[vapply(.ORDINALES, .na_explicito, logical(1),
@@ -519,5 +581,8 @@ cis_sociodem <- function(fichero,
         " perdidos como niveles al final, fuera del orden: ",
         paste(utils::head(ord_exp, 8), collapse = ", "),
         if (length(ord_exp) > 8) ", ...", ".\n", sep = "")
+  # Al final, con los ficheros ya escritos y 'NAs' ya comprobado contra
+  # los nombres
+  if (etiquetas) out <- .nombres_etiqueta(out)
   invisible(out)
 }

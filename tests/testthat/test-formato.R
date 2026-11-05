@@ -35,7 +35,7 @@ test_that("las etiquetas sobreviven al viaje a Stata", {
   cis_sociodem(f, destino = destino, formato = "dta",
                tabla = tabla_temporal(), avisos = FALSE)
   d <- haven::read_dta(paste0(destino, ".dta"))
-  expect_equal(attr(d$genero, "label"), "Sexo de la persona entrevistada")
+  expect_equal(attr(d$genero, "label"), "Género")
   expect_equal(attr(d$genero, "labels")[["Mujer"]], 2)
   expect_equal(attr(d$estudios, "labels")[["Universitarios"]], 500)
 })
@@ -71,6 +71,29 @@ test_that("salida='completo' tambien va a Stata si los nombres valen", {
                tabla = tabla_temporal(), avisos = FALSE)
   d <- haven::read_dta(paste0(destino, ".dta"))
   expect_true(all(c("SEXO", "ESTUDIOS_ORIG", "genero") %in% names(d)))
+})
+
+test_that("las etiquetas de valores con decimales no se graban", {
+  m <- estudio_moderno()
+  pesos <- c(2.87887, 1.34564, 0.64517, 1, 1.10473, 0.50187, 2.58487, 1)
+  m$PESO <- .v(pesos, "Ponderación",
+               setNames(unique(pesos), format(unique(pesos))))
+  f <- sav_temporal(m, "3557")
+  destino <- tempfile()
+  expect_output(
+    cis_sociodem(f, destino = destino, formato = "ambos", salida = "completo",
+                 tabla = tabla_temporal()),
+    "PESO va\\(n\\) sin etiquetas")
+  d <- haven::read_dta(paste0(destino, ".dta"))
+  expect_equal(as.numeric(d$PESO), pesos)
+  expect_null(attr(d$PESO, "labels"))
+  expect_equal(attr(d$PESO, "label"), "Ponderación")
+  expect_equal(attr(d$SEXO, "labels")[["Mujer"]], 2)
+  s <- haven::read_sav(paste0(destino, ".sav"))
+  expect_equal(as.numeric(s$PESO), pesos)
+  expect_null(attr(s$PESO, "labels"))
+  expect_equal(attr(s$PESO, "label"), "Ponderación")
+  expect_equal(attr(s$SEXO, "labels")[["Mujer"]], 2)
 })
 
 test_that("un nombre que Stata no admite da un error que lo nombra", {

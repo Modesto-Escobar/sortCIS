@@ -1,4 +1,29 @@
-# sortCIS 0.4.0
+# sortCIS 0.4.1
+
+*Versión de sincronización: GitHub tenía el 0.4.0 del 12-oct-2026 y este es el mismo 0.4.0 con los cambios hechos desde entonces (entre ellos `cisConvert()` y `trimMissing()`). Las notas de ambos están juntas en el bloque siguiente, sin separar.*
+
+* **Nuevas funciones `cisConvert()` y `trimMissing()`**, versión en inglés
+  de `cis_sociodem()` y `recorta_perdidos()` pensada para pasar a netCoin,
+  con sus nombres en camelCase. En inglés van los argumentos, sus valores,
+  la ayuda, los comentarios y los mensajes; los datos no se traducen (las
+  armonizadas siguen siendo `genero`, «Hombre», «N.S.»...). Dan el mismo
+  resultado que las originales, comprobado en el 1181, 2207, 2798, 3557,
+  3567 y 3577, en lo que se devuelve y en los ficheros escritos. Lo que
+  cambia:
+  - No lee ni escribe la tabla de correspondencias ni busca
+    `datos/estudios_fecha.csv`. Para forzar una variable, el argumento
+    `variables` (`c(ideologia = "P23")`; `""`, que no está en el estudio).
+    Lo elegido queda en el atributo `"detected"`.
+  - Los atributos `"perdidos"` y `"nombres"` se llaman `"missingLevels"` y
+    `"varnames"`.
+  - Van en ficheros propios (`R/cisConvert*.R` y `R/trimMissing.R`), con las funciones internas
+    con prefijo `.cis_` y las cadenas en ASCII, para copiarla a netCoin
+    tal cual.
+* **Una pregunta sin etiqueta de variable rompía `grabar = "como_R"`.**
+  `attr(x, "label")` casa a medias con `"labels"`, así que la convertida se
+  llevaba como etiqueta las de valor y `write_sav()` fallaba. Pasaba en el
+  2798 (`P43`, `P44`) con `salida = "completo"`. Ahora se lee con
+  `exact = TRUE`.
 
 * **Factores en lo que se devuelve.** `cis_sociodem()` gana el argumento
   `factores`, `TRUE` por defecto: las nueve variables armonizadas del
@@ -73,6 +98,47 @@
   `IA_*` (incidencias de contacto, supervisión de la entrevista...), del
   fichero escrito y de lo que se devuelve. El nuevo argumento `IAs = TRUE`
   las conserva.
+* **Nuevo argumento `etiquetas`**, `FALSE` por defecto. Con `TRUE`, las
+  columnas de lo que se devuelve se llaman como su etiqueta («Género»,
+  «Ideología»...); las que no tienen etiqueta conservan el nombre. Si dos
+  columnas tienen la misma etiqueta, la primera se la queda y las demás
+  llevan su nombre entre paréntesis: una escala y su conversión comparten
+  etiqueta, y la original pasa a «Pedro Sanchez (VALSAN)». Las armonizadas
+  van delante y nunca llevan el paréntesis. Los nombres de antes quedan en
+  el atributo `"nombres"`.
+* **Nuevo argumento `grabar`**, `"original"` por defecto. Con `"como_R"` y
+  `salida = "completo"`, el fichero lleva también las escalas y Likert
+  convertidas, siempre como números y sin etiquetas de valor (sólo con la
+  de variable), para que SPSS y lo que lee el `.sav` (CARING) las tomen por
+  cuantitativas y no por nominales. Van orientadas con el valor alto en el
+  polo alto («mucho», «muy bien»): las Likert, ya invertidas. Las originales se
+  conservan; la que coincide con su convertida salvo en mayúsculas
+  (`ESCIDEOL` y `escideol`), que en SPSS serían la misma variable, se graba
+  como `ESCIDEOL_ORIG`. En el fichero van primero las nueve armonizadas
+  (`genero` … `clase`) y las convertidas; después, el cuestionario desde la
+  `P1`; y al final, la cabecera del original (de `ESTUDIO` a `PAISNAC2`,
+  todo lo anterior a la `P1`) y las claves `orden` y `numentr`.
+* **Etiquetas de las variables armonizadas**, con tildes y más cortas:
+  «Género» (antes «Sexo de la persona entrevistada»), «Generación»,
+  «Ideología», «Religión», «Situación laboral», «Situación profesional».
+  También las de identificación: `estudio` es «Estudio», `cues`,
+  «Cuestionario», `orden`, «Posición en el fichero» y `numentr`,
+  «Estudio*100000+orden». Las etiquetas nuevas van también a los ficheros
+  escritos; los nombres de las variables no cambian. `recorta_perdidos()`
+  reconoce las armonizadas por su etiqueta.
+* **Año del estudio desde el 3567.** La fecha de realización viene en
+  `IA_E1_ANYO` («Año de realización») y no en `E103`; ahora se reconoce.
+* **El 3577 se lee sin el aviso «Invalid date string».** La fecha de
+  creación de su cabecera está mal formada («22 028 26»); se lee una copia
+  temporal con la fecha corregida. Los datos y las etiquetas no cambian.
+* **Sin etiquetas de valor en las variables con decimales.** El CIS etiqueta
+  a veces cada valor de una variable con decimales con el propio número: en
+  el 3577, `PESO` y `PESOCCAA` («2,87887»). Stata no admite etiquetas de valor
+  que no sean enteras, así que el 3577 no se podía escribir en `.dta` con
+  `salida = "completo"`; y en el `.sav`, SPSS y CARING tomaban la ponderación
+  por una nominal de miles de categorías. Ahora estas variables se graban,
+  en los dos formatos, sin etiquetas de valor (conservan la de variable), y
+  se avisa de cuáles son. En lo que se devuelve en R no cambia nada.
 
 * **`profesional` es la situación profesional actual.** Quien no trabaja,
   según `laboral`, pasa a 0 N.P.; con `laboral` perdido manda la propia

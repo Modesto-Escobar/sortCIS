@@ -172,7 +172,7 @@
   hueco <- is.na(txt) & v %in% p
   txt[hueco] <- nuevos[match(v[hueco], p)]
   g <- factor(txt, levels = c(levels(f), nuevos), ordered = is.ordered(f))
-  attr(g, "label") <- attr(f, "label")
+  attr(g, "label") <- attr(f, "label", exact = TRUE)
   attr(g, "perdidos") <- nuevos
   g
 }
@@ -186,13 +186,13 @@
   v <- as.numeric(zap_missing(x))
   v[v %in% .codigos_perdidos(x)] <- NA
   if (is.null(lv) || !all(v[!is.na(v)] %in% as.numeric(lv))) {
-    attr(v, "label") <- attr(x, "label")
+    attr(v, "label") <- attr(x, "label", exact = TRUE)
     return(v)
   }
   ok <- !as.numeric(lv) %in% .perdidos_etiquetados(crudo)
   lv <- lv[ok][order(as.numeric(lv[ok]))]
   f <- factor(v, levels = as.numeric(lv), labels = make.unique(names(lv)))
-  attr(f, "label") <- attr(x, "label")
+  attr(f, "label") <- attr(x, "label", exact = TRUE)
   if (explicito) f <- .explicita(f, crudo)
   f
 }
@@ -204,7 +204,8 @@
 # 'crudos' son las variables originales leidas con user_na = TRUE, con los
 # mismos nombres que en 'out'; solo hacen falta para los perdidos
 # explicitos. Devuelve, en el atributo "ordenadas_explicitas", las
-# ordenadas que se han quedado con los perdidos al final, para avisar.
+# ordenadas que se han quedado con los perdidos al final, para avisar, y
+# en "convertidas", la original de cada convertida (nombre = convertida).
 .prepara_completo <- function(out, likert, escala, centrada, factores, NAs,
                               crudos = list(), motivos = list()) {
   claves <- intersect(c("orden", "numentr"), names(out))
@@ -215,6 +216,7 @@
 
   tipo <- vapply(orig, function(v) .tipo_pregunta(out[[v]], v), character(1))
   nuevas <- list()
+  de <- character(0)
   for (v in orig[tipo != ""]) {
     x <- out[[v]]
     nm <- tolower(v)
@@ -229,8 +231,9 @@
       nv <- .explicita(nv, crudo(v))
       avisar <- c(avisar, nm)
     }
-    attr(nv, "label") <- attr(x, "label")
+    attr(nv, "label") <- attr(x, "label", exact = TRUE)
     nuevas[[nm]] <- nv
+    de[nm] <- v
   }
 
   if (factores) {
@@ -244,5 +247,44 @@
   for (nm in names(nuevas)) out[[nm]] <- nuevas[[nm]]
   out <- out[c(claves, socio, names(nuevas), orig)]
   attr(out, "ordenadas_explicitas") <- avisar
+  attr(out, "convertidas") <- de
   out
+}
+
+# Lo que se graba con grabar = "como_R": las columnas de salida =
+# "completo", con las armonizadas delante (ver al final), pero sin factores (un factor grabado
+# pierde los codigos: el 100..500 de estudios saldria 1..4) y con las
+# convertidas siempre numericas y SIN etiquetas de valor, solo con la de
+# variable: con etiquetas de valor SPSS (y lo que lee el .sav, como
+# CARING) las toma por nominales. Ya van orientadas (el valor alto es
+# "mucho", "muy bien", "de acuerdo"), asi que el codigo se lee solo. SPSS
+# no distingue mayusculas, asi que la original que choca con su
+# convertida (ESCIDEOL con escideol) se graba con _ORIG, como las que
+# chocan con las armonizadas. Las renombradas quedan en el atributo
+# "renombradas", para avisar.
+.para_grabar <- function(out, centrada) {
+  g <- .prepara_completo(out, "numerica", "numerica", centrada,
+                         factores = FALSE, NAs = TRUE)
+  de <- attr(g, "convertidas")
+  attr(g, "ordenadas_explicitas") <- NULL
+  attr(g, "convertidas") <- NULL
+
+  conv <- tolower(names(de))
+  choques <- names(g)[!names(g) %in% names(de) & tolower(names(g)) %in% conv]
+  for (v in choques) {
+    nn <- paste0(v, "_ORIG")
+    while (tolower(nn) %in% tolower(names(g))) nn <- paste0(nn, "1")
+    names(g)[names(g) == v] <- nn
+  }
+  # En el fichero van delante las armonizadas. La cabecera del original
+  # (estudio, registro, territorio, sexo, edad, nacionalidad...: todo lo
+  # que hay antes de la primera pregunta, P1) pasa al final, con las
+  # claves. Sin preguntas P<n> la cabecera no se reconoce y se queda.
+  claves <- intersect(c("orden", "numentr"), names(g))
+  orig   <- setdiff(names(g), c(claves, names(.ETIQ), names(de)))
+  p1     <- match(TRUE, grepl("^P[0-9]", orig, ignore.case = TRUE))
+  cabeza <- if (is.na(p1)) character(0) else orig[seq_len(p1 - 1)]
+  g <- g[c(names(.ETIQ), names(de), setdiff(orig, cabeza), cabeza, claves)]
+  attr(g, "renombradas") <- choques
+  g
 }

@@ -19,7 +19,9 @@ cis_sociodem(
   likert = c("numerica", "factor"),
   escala = c("numerica", "factor"),
   centrada = FALSE,
-  IAs = FALSE
+  IAs = FALSE,
+  etiquetas = FALSE,
+  grabar = c("original", "como_R")
 )
 }
 \arguments{
@@ -153,6 +155,38 @@ defecto), se quitan las variables de paradatos del CIS, las que empiezan
 por \code{IA_} (incidencias de contacto, supervisión de la entrevista...),
 tanto del fichero que se escribe como de lo que se devuelve. Con \code{TRUE}
 se conservan.}
+
+\item{etiquetas}{Si es \code{TRUE}, las columnas del \code{data.frame} que se
+devuelve se llaman como su etiqueta (\code{"Género"}, \code{"Ideología"}...) y
+no por su nombre. Las que no tienen etiqueta conservan el nombre. Si
+dos columnas tienen la misma etiqueta, la primera se queda con ella y
+las demás llevan detrás su nombre entre paréntesis: con \code{salida = "completo"}, una escala y su conversión comparten etiqueta, y la
+original pasa a, por ejemplo, \code{"Pedro Sanchez (VALSAN)"}. Las
+armonizadas van delante, así que nunca les toca el paréntesis. Los
+nombres de antes quedan en el atributo \code{"nombres"} del
+\code{data.frame}, con las etiquetas como nombres. Por defecto, \code{FALSE}.
+
+Sólo afecta a lo que se devuelve en R: los ficheros \code{.sav} y \code{.dta} se
+escriben siempre con los nombres de variable. \code{NAs} sigue tomando los
+nombres, no las etiquetas.}
+
+\item{grabar}{Qué se graba en el fichero. Con \code{"original"} (por
+defecto), las variables tal como vienen del CIS, más las armonizadas.
+Con \code{"como_R"} y \code{salida = "completo"}, también las escalas y Likert
+convertidas. El orden es otro que en R: primero las armonizadas y las
+convertidas, luego el cuestionario desde la \code{P1} y, al final, la
+cabecera del original (lo anterior a la \code{P1}: \code{ESTUDIO}, \code{REGISTRO},
+\code{CUES}, territorio, \code{SEXO}, \code{EDAD}, nacionalidad...) con \code{orden} y
+\code{numentr}. En el fichero van siempre como números, aunque en R se
+pidan como factor, y sin etiquetas de valor (sólo con la de variable),
+para que SPSS y lo que lee el \code{.sav} las tomen por cuantitativas y no
+por nominales. Van orientadas de modo que el valor alto es el polo alto
+("mucho", "muy bien", "de acuerdo"): las Likert, ya invertidas (y
+centradas, con \code{centrada = TRUE}); las escalas, con su valor tal cual.
+Las armonizadas siguen con los códigos del esquema común y las
+originales se conservan; como SPSS no distingue mayúsculas, la
+original que coincide con su convertida (\code{ESCIDEOL} con \code{escideol}) se
+graba con el sufijo \verb{_ORIG}. Con otras salidas no cambia nada.}
 }
 \value{
 Invisiblemente, el \code{data.frame} de salida. El efecto que interesa
@@ -300,6 +334,14 @@ d <- recorta_perdidos(cis_sociodem("datos/sav/3557.sav", escribir = FALSE))
 
 # Etiquetadas con los códigos del esquema, como en el fichero
 d <- cis_sociodem("datos/sav/3557.sav", escribir = FALSE, factores = FALSE)
+
+# Las columnas con el nombre de su etiqueta; el fichero, con los nombres
+d <- cis_sociodem("datos/sav/3557.sav", etiquetas = TRUE)
+attr(d, "nombres")   # de etiqueta a nombre
+
+# El fichero, con las escalas y Likert convertidas, como en R
+d <- cis_sociodem("datos/sav/3557.sav", salida = "completo",
+                  grabar = "como_R")
 }
 
 }

@@ -12,6 +12,13 @@
 # Sin ponderar.
 # ---------------------------------------------------------------------
 
+# Si una columna es una de las nueve armonizadas, por su nombre o, con
+# cis_sociodem(etiquetas = TRUE), por su etiqueta. La etiqueta no se
+# confunde con la de una original: si coinciden, la original lleva
+# detras su nombre entre parentesis.
+.es_armonizada <- function(nombre)
+  nombre %in% c(names(.ETIQ), vapply(.ETIQ, `[[`, character(1), "lab"))
+
 # Que niveles de un factor son de perdido. cis_sociodem() los deja
 # apuntados en el atributo "perdidos"; si se ha perdido por el camino
 # (rbind, subset...), se reconocen por la etiqueta, como en el resto del
@@ -19,7 +26,7 @@
 # una categoria del esquema (profesional), no un perdido.
 .niveles_perdido <- function(f, nombre) {
   p <- attr(f, "perdidos")
-  if (nombre %in% names(.ETIQ)) return(intersect(levels(f), .NIVELES_PERDIDO))
+  if (.es_armonizada(nombre)) return(intersect(levels(f), .NIVELES_PERDIDO))
   if (!is.null(p)) return(intersect(levels(f), p))
   et <- .norm(levels(f))
   levels(f)[grepl(.PERDIDO_PREG, et) & !grepl(.NO_PROCEDE, et)]
@@ -37,7 +44,7 @@
   if (!length(fuera)) return(f)
   atr <- attributes(f)
   f[f %in% fuera] <- NA
-  if (!nombre %in% names(.ETIQ)) {
+  if (!.es_armonizada(nombre)) {
     f <- droplevels(f, except = which(!levels(f) %in% fuera))
     atr$levels <- levels(f)
   }
